@@ -232,13 +232,15 @@ const eur=new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{}),shop=load('cart.shop',[]);
+let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{}),shop=load('cart.shop',[]),byName=load('cart.byname',{});
 const CAT=[];
+const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+for(const r of CAT){const o=byName[norm(r[0])];if(o){r[1]=o.price;r[2]=0;r[4]=o.date}}
 let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
 let tT=null;function toast(t,undo){$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
-function save(){store('cart.items',items);store('cart.budget',budget);store('cart.known',known);store('cart.shop',shop)}
+function save(){store('cart.items',items);store('cart.budget',budget);store('cart.known',known);store('cart.shop',shop);store('cart.byname',byName)}
 const r2=n=>Math.round(n*100)/100;
 const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
 function offerDisc(o,p,q){const d=OFF[o];return d?Math.floor(q/d[1])*p*d[2]:0}
@@ -272,7 +274,6 @@ function render(){
   renderShop();
 }
 
-const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 function renderSug(){
   const q=norm($('iName').value.trim()),words=q.split(/\s+/).filter(Boolean);
   const list=(words.length?CAT.filter(r=>words.every(w=>norm(r[0]).includes(w))):CAT).slice(0,words.length?8:6);
@@ -449,6 +450,7 @@ $('fItem').onsubmit=e=>{
   }
   const qty=rec.mode==='kg'&&!editing?1:Math.max(1,parseInt($('iQty').value,10)||1);
   if(code&&!/^2\d{12}$/.test(code))known[code]=rec.mode==='kg'?{name,price:rec.perKg,mode:'kg',perKg:rec.perKg}:{name,price:rec.price};
+  if(name&&rec.mode==='unit'&&!/^2\d{12}$/.test(code))byName[norm(name)]={price:rec.price,date:new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})};
   let msg;
   if(editing){const it=items.find(i=>i.id===editing);Object.assign(it,rec);if(rec.mode!=='kg')it.qty=qty;msg='Artículo actualizado'}
   else{
@@ -456,7 +458,7 @@ $('fItem').onsubmit=e=>{
     if(same){same.qty+=qty;same.offer=rec.offer||same.offer;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,...rec,qty})}
     msg='Añadido: '+(name||'artículo')+' · '+eur.format(rec.mode==='kg'?rec.price:rec.price*qty);
     const li=listLink?shop.find(x=>x.id===listLink):shop.find(x=>!x.done&&name&&norm(x.name)===norm(name));
-    if(li){li.done=true;msg+=' · tachado de la lista'}
+    if(li){li.done=true;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
   }
   toast(msg);save();render();closeItem();
 };
@@ -486,7 +488,7 @@ $('clear').onclick=()=>{if(!items.length)return;ask({title:'¿Vaciar el carrito?
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){stopScan();closeItem();$('sAsk').classList.remove('on')}});
 
 /* ---- lista de la compra ---- */
-const findPrice=n=>{const k=norm(n),c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
+const findPrice=n=>{const k=norm(n);if(byName[k])return byName[k].price;const c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
 function renderShop(){
   const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=shop.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
   $('shopSum').textContent=shop.length?(left.length?`${shop.length-left.length} de ${shop.length} · faltan ~${eur.format(leftEst)}`:'¡Lo tienes todo!')+` · total ~${eur.format(est)}`:'Vacía';
