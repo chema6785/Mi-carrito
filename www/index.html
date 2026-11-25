@@ -47,7 +47,7 @@ li.new{animation:in .4s ease}
 .nm{font-weight:600;overflow-wrap:anywhere}
 .cd{font-size:13px;color:var(--mute)}
 .pr{font:700 18px Archivo,sans-serif;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.row2{grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.row2{grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}.row2 .unit{flex:1 1 100%;margin:0;white-space:normal;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .ico{width:44px;height:40px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--ink);font:700 18px Inter;cursor:pointer}
 .qty{min-width:2.2em;text-align:center;font-weight:600}
 .unit{font-size:13px;color:var(--mute);margin-right:auto;white-space:nowrap}
@@ -79,6 +79,26 @@ input.big{font:700 26px Archivo,sans-serif;font-variant-numeric:tabular-nums}
 .scanbot .btn{background:#ffffffe6;color:#111;min-height:52px;font-size:15px}
 .scanbot .btn[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){.frame::after{animation:none}}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);border:1.5px solid var(--line);border-radius:14px;padding:4px;margin-top:14px}
+.seg button{min-height:42px;border:0;border-radius:10px;background:transparent;color:var(--ink);font:600 15px Inter,sans-serif;cursor:pointer}
+.seg button.on{background:var(--paper);box-shadow:0 1px 4px #0002}
+select{width:100%;min-height:50px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:16px Inter,sans-serif;padding:0 12px}
+.calc{font-size:14px;margin-top:6px;color:var(--ok);font-weight:600;min-height:1em}
+.calc.warn{color:var(--warn)}
+.tag{font-size:12px;font-weight:700;color:var(--ok);background:light-dark(#e3f4ec,#173528);border-radius:8px;padding:2px 8px;white-space:nowrap}
+.tag.warn{color:var(--warn);background:light-dark(#fdf0e1,#3a2a14)}
+.shop{margin:16px max(4vw,12px) 0;background:var(--paper);border-radius:14px;overflow:hidden}
+.shead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line)}
+.shead b{display:block;font:700 17px Archivo,sans-serif}.shead span{font-size:13px;color:var(--mute)}
+.sl{display:flex;align-items:center;gap:10px;padding:6px 12px 6px 10px;border-bottom:1px solid var(--line);grid-template-columns:none}
+.chk{flex:none;width:40px;height:40px;border-radius:50%;border:2px solid var(--line);background:transparent;color:transparent;font:700 18px Inter;cursor:pointer}
+.sl.done .chk{background:var(--ok);border-color:var(--ok);color:#fff}
+.slname{flex:1;display:flex;justify-content:space-between;gap:8px;align-items:center;min-height:44px;background:none;border:0;color:var(--ink);font:500 15px Inter,sans-serif;text-align:left;cursor:pointer;padding:0}
+.slname small{color:var(--mute);white-space:nowrap}
+.sl.done .slname span{text-decoration:line-through;color:var(--mute)}
+.shopempty{padding:14px 16px;font-size:14px;color:var(--mute)}
+#lcur li{display:flex;align-items:center;gap:6px;padding:8px 0;border-bottom:1px solid var(--line)}
+#lcur .n{flex:1;font-size:15px}#lcur .n small{display:block;color:var(--mute);font-size:13px}
 .busy{display:none;padding:14px 0;color:var(--mute)}
 @media(prefers-reduced-motion:reduce){li.new{animation:none}.meter i{transition:none}}
 </style>
@@ -88,7 +108,7 @@ input.big{font:700 26px Archivo,sans-serif;font-variant-numeric:tabular-nums}
   <section class="till" aria-live="polite">
     <h1>Llevo gastado</h1>
     <div class="total" id="total">0,00 €</div>
-    <div class="sub"><span id="count">0 artículos</span><span id="left"></span></div>
+    <div class="sub"><span id="count">0 artículos</span><span id="saved"></span><span id="left"></span></div>
     <div class="meter" id="meter" hidden><i id="fill"></i></div>
     <div class="budgetline"><span id="blabel">Sin límite de gasto</span><button class="linkbtn" id="setBudget">Poner límite</button></div>
   </section>
@@ -105,6 +125,11 @@ input.big{font:700 26px Archivo,sans-serif;font-variant-numeric:tabular-nums}
     <div class="scantop" id="scanmsg">Apunta al código de barras</div>
     <div class="scanbot"><button class="btn" id="torch" hidden>Linterna</button><button class="btn" id="scanManual">A mano</button><button class="btn" id="scanClose">Cerrar</button></div>
   </div>
+
+  <section class="shop">
+    <div class="shead"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><button class="linkbtn" id="editList">Preparar</button></div>
+    <ul id="shopUl"></ul>
+  </section>
 
   <section class="ticket">
     <div class="thead"><span>Ticket</span><button class="linkbtn" id="clear">Vaciar carrito</button></div>
@@ -125,13 +150,36 @@ input.big{font:700 26px Archivo,sans-serif;font-variant-numeric:tabular-nums}
       <label for="iName">Producto</label>
       <input id="iName" autocomplete="off" placeholder="Escribe para buscar en tus compras">
       <div class="sugt" id="sugt">De tus tickets de Carrefour</div><div class="sug" id="sug"></div>
-      <div class="two">
-        <div><label for="iPrice">Precio (€)</label><input id="iPrice" class="big" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
-        <div><label for="iQty">Unidades</label><input id="iQty" class="big" inputmode="numeric" value="1"></div>
+      <div class="seg" role="group" aria-label="Cómo se vende"><button type="button" id="mUnit" class="on">Por unidad</button><button type="button" id="mKg">Por peso</button></div>
+      <div id="unitF">
+        <div class="two">
+          <div><label for="iPrice">Precio (€)</label><input id="iPrice" class="big" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+          <div><label for="iQty">Unidades</label><input id="iQty" class="big" inputmode="numeric" value="1"></div>
+        </div>
+        <label for="iOffer">Oferta</label>
+        <select id="iOffer"><option value="">Sin oferta</option><option value="2x1">2x1</option><option value="3x2">3x2</option><option value="2a50">2ª unidad −50 %</option><option value="2a70">2ª unidad −70 %</option></select>
       </div>
+      <div id="kgF" hidden>
+        <div class="two">
+          <div><label for="iKg">Precio por kg (€)</label><input id="iKg" class="big" inputmode="decimal" autocomplete="off" placeholder="0,00"></div>
+          <div><label for="iGr">Peso (gramos)</label><input id="iGr" class="big" inputmode="numeric" autocomplete="off" placeholder="850"></div>
+        </div>
+      </div>
+      <div class="calc" id="calc"></div>
       <div class="note" id="note" hidden></div>
     </div>
     <div class="sbtns"><button type="button" class="btn ghost" id="cancel">Cancelar</button><button class="btn primary" id="save">Añadir</button></div>
+  </form>
+</div>
+
+<div class="scrim" id="sList" role="dialog" aria-modal="true" aria-labelledby="tList">
+  <form class="sheet" id="fList">
+    <h2 id="tList">Lista de la compra</h2>
+    <p id="pList"></p>
+    <input id="lq" autocomplete="off" placeholder="Busca o escribe un producto">
+    <div class="sugt" id="lsugt"></div><div class="sug" id="lsug"></div>
+    <div class="sugt">En tu lista</div><ul id="lcur"></ul>
+    <div class="sbtns"><button type="button" class="btn ghost" id="lClear">Vaciar lista</button><button class="btn primary">Listo</button></div>
   </form>
 </div>
 
@@ -152,16 +200,24 @@ const eur=new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
 const store=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{});
+let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{}),shop=load('cart.shop',[]);
 const CAT=[];
-let editing=null,lastRemoved=null,newId=null,askCb=null;
+let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
 function toast(t,undo){$('toast').textContent=t;$('undo').hidden=!undo}
-function save(){store('cart.items',items);store('cart.budget',budget);store('cart.known',known)}
+function save(){store('cart.items',items);store('cart.budget',budget);store('cart.known',known);store('cart.shop',shop)}
+const r2=n=>Math.round(n*100)/100;
+const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
+function offerDisc(o,p,q){const d=OFF[o];return d?Math.floor(q/d[1])*p*d[2]:0}
+const lineGross=i=>r2(i.price*i.qty), lineTotal=i=>r2(i.price*i.qty-offerDisc(i.offer,i.price,i.qty));
+function offerTag(i){const d=OFF[i.offer];if(!d)return '';const s=offerDisc(i.offer,i.price,i.qty);
+  return s>0?`<span class="tag">${esc(d[0])} · ahorras ${eur.format(s)}</span>`:`<span class="tag warn">${esc(d[0])}: coge ${d[1]-i.qty%d[1]} más</span>`}
+const fkg=g=>(g/1000).toLocaleString('es-ES',{minimumFractionDigits:3,maximumFractionDigits:3})+' kg';
 
 function render(){
-  const total=items.reduce((a,i)=>a+i.price*i.qty,0),n=items.reduce((a,i)=>a+i.qty,0);
+  const total=r2(items.reduce((a,i)=>a+lineTotal(i),0)),n=items.reduce((a,i)=>a+i.qty,0),saved=r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0));
+  $('saved').textContent=saved>0?'Ofertas: −'+eur.format(saved):'';
   $('total').textContent=eur.format(total);
   $('count').textContent=n===1?'1 artículo':n+' artículos';
   const m=$('meter');
@@ -173,14 +229,15 @@ function render(){
   }else{m.hidden=true;$('left').textContent='';$('blabel').textContent='Sin límite de gasto';$('setBudget').textContent='Poner límite'}
   $('list').innerHTML=items.length?items.slice().reverse().map(i=>`<li data-id="${esc(i.id)}" class="${i.id===newId?'new':''}">
     <div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}</div></div>
-    <div class="pr">${eur.format(i.price*i.qty)}</div>
-    <div class="row2"><span class="unit">${i.qty} × ${eur.format(i.price)}</span>
+    <div class="pr">${eur.format(lineTotal(i))}</div>
+    <div class="row2"><span class="unit">${i.mode==='kg'?(i.qty>1?i.qty+' × ':'')+fkg(i.grams)+' × '+eur.format(i.perKg)+'/kg':i.qty+' × '+eur.format(i.price)} ${offerTag(i)}</span>
       <button class="ico" data-a="minus" aria-label="Quitar una unidad">−</button><span class="qty">${i.qty}</span>
       <button class="ico" data-a="plus" aria-label="Añadir una unidad">+</button>
       <button class="ico" data-a="edit" aria-label="Editar">✎</button>
       <button class="ico" data-a="del" aria-label="Eliminar">✕</button></div></li>`).join('')
     :'<div class="empty"><b>El carrito está vacío</b>Escanea el primer producto para empezar a sumar.</div>';
   newId=null;
+  renderShop();
 }
 
 const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -203,18 +260,35 @@ function openItem(opts){
   $('iCode').value=opts.code||'';$('iName').value=opts.name||'';
   $('iPrice').value=opts.price!=null&&!isNaN(opts.price)?String(opts.price.toFixed(2)).replace('.',','):'';
   $('iQty').value=opts.qty||1;
+  $('iOffer').value=opts.offer||'';
+  $('iKg').value=opts.perKg?String(opts.perKg.toFixed(2)).replace('.',','):'';$('iGr').value=opts.grams||'';
+  setMode(opts.mode==='kg'?'kg':'unit');listLink=opts.listId||null;
   $('note').hidden=!opts.note;$('note').textContent=opts.note||'';
   $('busy').style.display=opts.busy?'block':'none';$('fields').hidden=!!opts.busy;$('save').disabled=!!opts.busy;
   renderSug();
   $('sItem').classList.add('on');
   if(!opts.busy)setTimeout(()=>$(opts.code&&opts.price==null?'iName':opts.code?'iPrice':opts.focus||'iName').focus(),60);
 }
-function closeItem(){$('sItem').classList.remove('on');editing=null}
+function closeItem(){$('sItem').classList.remove('on');editing=null;listLink=null}
+function setMode(m){mode=m;$('mUnit').classList.toggle('on',m==='unit');$('mKg').classList.toggle('on',m==='kg');$('unitF').hidden=m==='kg';$('kgF').hidden=m!=='kg';calc()}
+$('mUnit').onclick=()=>setMode('unit');
+$('mKg').onclick=()=>{setMode('kg');$('iKg').focus()};
+function calc(){
+  const c=$('calc');c.className='calc';
+  if(mode==='kg'){const k=parseMoney($('iKg').value),g=parseInt($('iGr').value,10);
+    c.textContent=isNaN(k)||!(g>0)?'Mira el precio por kg en el cartel y el peso en la báscula':fkg(g)+' × '+eur.format(k)+'/kg = '+eur.format(r2(k*g/1000));return}
+  const p=parseMoney($('iPrice').value),q=Math.max(1,parseInt($('iQty').value,10)||1),o=$('iOffer').value,d=OFF[o];
+  if(!d||isNaN(p)){c.textContent='';return}
+  const s=offerDisc(o,p,q);
+  if(s>0)c.textContent='Pagas '+eur.format(r2(p*q-s))+' en vez de '+eur.format(r2(p*q))+' (ahorras '+eur.format(s)+')';
+  else{c.className='calc warn';c.textContent='Para aprovechar el '+d[0]+' necesitas '+d[1]+' unidades: coge '+(d[1]-q%d[1])+' más'}
+}
+['iPrice','iQty','iKg','iGr'].forEach(id=>$(id).addEventListener('input',calc));$('iOffer').addEventListener('change',calc);
 
 function prefillFromCode(code,msg){
   const k=known[code];let price=k?k.price:null,note='';
   if(!k&&/^2\d{12}$/.test(code)){price=parseInt(code.slice(7,12),10)/100;note='Parece una etiqueta de peso (fruta, charcutería…). He sacado el precio del código: compruébalo con la etiqueta.'}
-  openItem({code,name:k?k.name:'',price,msg:msg||(k?'Ya lo habías comprado: precio recordado.':'Código nuevo: buscando en Open Food Facts…'),note});
+  openItem({code,name:k?k.name:'',price,mode:k&&k.mode,perKg:k&&k.perKg,msg:msg||(k?'Ya lo habías comprado: precio recordado.':'Código nuevo: buscando en Open Food Facts…'),note});
   if(!k&&!/^2\d{12}$/.test(code)&&/^\d{8,14}$/.test(code))lookupOnline(code);
 }
 
@@ -330,17 +404,29 @@ $('cancel').onclick=closeItem;
 
 $('fItem').onsubmit=e=>{
   e.preventDefault();
-  const price=parseMoney($('iPrice').value),qty=Math.max(1,parseInt($('iQty').value,10)||1);
-  if(isNaN(price)){$('note').hidden=false;$('note').textContent='Pon el precio, por ejemplo 1,95';$('iPrice').focus();return}
   const code=$('iCode').value.trim().replace(/\s/g,''),name=$('iName').value.trim();
-  if(code&&!/^2\d{12}$/.test(code))known[code]={name,price};
-  if(editing){Object.assign(items.find(i=>i.id===editing),{code,name,price,qty});toast('Artículo actualizado')}
-  else{
-    const same=code&&items.find(i=>i.code===code&&i.price===price);
-    if(same){same.qty+=qty;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,code,name,price,qty})}
-    toast('Añadido: '+(name||'artículo')+' · '+eur.format(price*qty));
+  let rec;
+  if(mode==='kg'){
+    const perKg=parseMoney($('iKg').value),grams=parseInt($('iGr').value,10);
+    if(isNaN(perKg)||!(grams>0)){$('note').hidden=false;$('note').textContent='Pon el precio por kg y los gramos';$(isNaN(perKg)?'iKg':'iGr').focus();return}
+    rec={code,name,mode:'kg',perKg,grams,price:r2(perKg*grams/1000),offer:''};
+  }else{
+    const price=parseMoney($('iPrice').value);
+    if(isNaN(price)){$('note').hidden=false;$('note').textContent='Pon el precio, por ejemplo 1,95';$('iPrice').focus();return}
+    rec={code,name,mode:'unit',price,offer:$('iOffer').value};
   }
-  save();render();closeItem();
+  const qty=rec.mode==='kg'&&!editing?1:Math.max(1,parseInt($('iQty').value,10)||1);
+  if(code&&!/^2\d{12}$/.test(code))known[code]=rec.mode==='kg'?{name,price:rec.perKg,mode:'kg',perKg:rec.perKg}:{name,price:rec.price};
+  let msg;
+  if(editing){const it=items.find(i=>i.id===editing);Object.assign(it,rec);if(rec.mode!=='kg')it.qty=qty;msg='Artículo actualizado'}
+  else{
+    const same=rec.mode==='unit'&&code&&items.find(i=>i.code===code&&i.price===rec.price&&i.mode!=='kg');
+    if(same){same.qty+=qty;same.offer=rec.offer||same.offer;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,...rec,qty})}
+    msg='Añadido: '+(name||'artículo')+' · '+eur.format(rec.mode==='kg'?rec.price:rec.price*qty);
+    const li=listLink?shop.find(x=>x.id===listLink):shop.find(x=>!x.done&&name&&norm(x.name)===norm(name));
+    if(li){li.done=true;msg+=' · tachado de la lista'}
+  }
+  toast(msg);save();render();closeItem();
 };
 
 $('list').onclick=e=>{
@@ -350,7 +436,7 @@ $('list').onclick=e=>{
   if(a==='plus')i.qty++;
   else if(a==='minus'){if(i.qty>1)i.qty--;else return remove(i)}
   else if(a==='del')return remove(i);
-  else if(a==='edit')return openItem({edit:i.id,code:i.code,name:i.name,price:i.price,qty:i.qty,focus:'iPrice'});
+  else if(a==='edit')return openItem({edit:i.id,code:i.code,name:i.name,price:i.price,qty:i.qty,offer:i.offer,mode:i.mode,perKg:i.perKg,grams:i.grams,focus:'iPrice'});
   save();render();
 };
 function remove(i){lastRemoved={list:items.slice()};items=items.filter(x=>x!==i);save();render();toast('Quitado: '+(i.name||'artículo'),true)}
@@ -364,8 +450,42 @@ function ask(o,cb){
 $('askNo').onclick=()=>$('sAsk').classList.remove('on');
 $('fAsk').onsubmit=e=>{e.preventDefault();$('sAsk').classList.remove('on');askCb&&askCb($('iAsk').value)};
 $('setBudget').onclick=()=>ask({title:'Límite de gasto',text:'Te aviso cuando te acerques. Déjalo vacío para quitarlo.',field:'Límite (€)',value:budget?String(budget).replace('.',','):'',ok:'Guardar'},v=>{const n=parseMoney(v);budget=isNaN(n)?0:n;save();render();toast(budget?'Límite: '+eur.format(budget):'Sin límite')});
-$('clear').onclick=()=>{if(!items.length)return;ask({title:'¿Vaciar el carrito?',text:'Se borran los artículos de esta compra. Los precios recordados se mantienen.',ok:'Vaciar'},()=>{lastRemoved={list:items.slice()};items=[];save();render();toast('Carrito vacío',true)})};
+$('clear').onclick=()=>{if(!items.length)return;ask({title:'¿Vaciar el carrito?',text:'Se borran los artículos de esta compra. Los precios recordados se mantienen.',ok:'Vaciar'},()=>{lastRemoved={list:items.slice()};items=[];shop.forEach(x=>x.done=false);save();render();toast('Carrito vacío',true)})};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){stopScan();closeItem();$('sAsk').classList.remove('on')}});
+
+/* ---- lista de la compra ---- */
+const findPrice=n=>{const k=norm(n),c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
+function renderShop(){
+  const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=shop.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
+  $('shopSum').textContent=shop.length?(left.length?`${shop.length-left.length} de ${shop.length} · faltan ~${eur.format(leftEst)}`:'¡Lo tienes todo!')+` · total ~${eur.format(est)}`:'Vacía';
+  $('editList').textContent=shop.length?'Editar':'Preparar';
+  $('shopUl').innerHTML=shop.length?shop.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Desmarcar':'Marcar como cogido'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
+    :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
+}
+$('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
+  if(b.dataset.a==='tog'){x.done=!x.done;save();renderShop();return}
+  if(!x.done)openItem({name:x.name,price:x.price,qty:x.qty,listId:x.id,msg:'Escanéalo o confirma el precio de la etiqueta.',focus:'iPrice'})};
+function renderListEditor(){
+  const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(shop.map(x=>norm(x.name)));
+  let res=(w.length?CAT.filter(r=>w.every(t=>norm(r[0]).includes(t))):CAT.filter(r=>!inList.has(norm(r[0])))).slice(0,w.length?6:8).map(r=>[r[0],r[1]]);
+  if(w.length&&!CAT.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null]);
+  $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
+  $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[1]==null?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
+  $('lcur').innerHTML=shop.length?shop.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'}</small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
+  const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=shop.filter(x=>x.price==null).length;
+  $('pList').textContent=shop.length?'Te costará unos '+eur.format(est)+(np?' (más '+np+' sin precio)':''):'Añade lo que necesitas; el precio sale de tus tickets.';
+}
+$('editList').onclick=()=>{$('lq').value='';renderListEditor();$('sList').classList.add('on')};
+$('lq').addEventListener('input',renderListEditor);
+$('lsug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=b.dataset.n,ex=shop.find(x=>norm(x.name)===norm(n));
+  if(ex)ex.qty++;else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:n,price:findPrice(n),qty:1,done:false});
+  $('lq').value='';save();renderListEditor();renderShop();$('lq').focus()};
+$('lcur').onclick=e=>{const b=e.target.closest('button');if(!b)return;const i=shop.findIndex(x=>x.id===b.closest('li').dataset.id);if(i<0)return;
+  const a=b.dataset.a;if(a==='p')shop[i].qty++;else if(a==='m'){if(shop[i].qty>1)shop[i].qty--;else shop.splice(i,1)}else shop.splice(i,1);
+  save();renderListEditor();renderShop()};
+$('fList').onsubmit=e=>{e.preventDefault();$('sList').classList.remove('on');renderShop()};
+$('lClear').onclick=()=>{if(!shop.length)return;shop=[];save();renderListEditor();renderShop()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('sList').classList.remove('on')});
 
 render();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{});
