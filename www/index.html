@@ -214,7 +214,39 @@ function closeItem(){$('sItem').classList.remove('on');editing=null}
 function prefillFromCode(code,msg){
   const k=known[code];let price=k?k.price:null,note='';
   if(!k&&/^2\d{12}$/.test(code)){price=parseInt(code.slice(7,12),10)/100;note='Parece una etiqueta de peso (fruta, charcutería…). He sacado el precio del código: compruébalo con la etiqueta.'}
-  openItem({code,name:k?k.name:'',price,msg:msg||(k?'Ya lo habías comprado: precio recordado.':'Código nuevo: búscalo por nombre en tus compras o escribe el precio.'),note});
+  openItem({code,name:k?k.name:'',price,msg:msg||(k?'Ya lo habías comprado: precio recordado.':'Código nuevo: buscando en Open Food Facts…'),note});
+  if(!k&&!/^2\d{12}$/.test(code)&&/^\d{8,14}$/.test(code))lookupOnline(code);
+}
+
+/* ---- Open Food Facts + Open Prices (solo lectura) ---- */
+async function getJSON(url){
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),6000);
+  try{const r=await fetch(url,{signal:c.signal});return r.ok?await r.json():null}catch(e){return null}finally{clearTimeout(t)}
+}
+const fdate=d=>{const [y,m,dd]=String(d||'').split('-');return dd?dd+'/'+m+'/'+y:''};
+async function lookupOnline(code){
+  const still=()=>$('sItem').classList.contains('on')&&$('iCode').value.trim()===code&&!editing;
+  const [pr,off]=await Promise.all([
+    getJSON('https://prices.openfoodfacts.org/api/v1/prices?product_code='+code+'&currency=EUR&order_by=-date&size=50'),
+    getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name_es,product_name,brands,quantity')]);
+  if(!still())return;
+  const p=off&&off.status===1&&off.product||{},items=(pr&&pr.items)||[];
+  let name=[p.product_name_es||p.product_name||(items[0]&&items[0].product&&items[0].product.product_name)||'',p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ');
+  const es=items.filter(i=>i.location&&i.location.osm_address_country_code==='ES'),
+        crf=es.filter(i=>/carrefour/i.test((i.location.osm_brand||'')+' '+(i.location.osm_name||'')));
+  const best=crf[0]||es[0]||null;
+  let msg='';
+  if(name&&!$('iName').value.trim()){$('iName').value=name;renderSug()}
+  if(best&&!$('iPrice').value.trim()){
+    const n=Number(best.price);
+    if(isFinite(n)&&n>0){$('iPrice').value=n.toFixed(2).replace('.',',');
+      const L=best.location,where=[L.osm_name||'',L.osm_address_city||''].filter(Boolean).join(', ');
+      $('note').hidden=false;$('note').textContent='Precio compartido por otra persona'+(where?' en '+where:'')+(best.date?' el '+fdate(best.date):'')+(best.price_is_discounted?' (estaba de oferta)':'')+(crf[0]?'':' — no es de un Carrefour')+'. Compruébalo con la etiqueta.'}
+  }
+  msg=name&&best?'Encontrado en Open Food Facts.':name?'Encontrado el nombre en Open Food Facts; nadie ha compartido aún su precio en España.':best?'Hay un precio compartido, pero no el nombre.':'No está en Open Food Facts: búscalo en tus compras o escribe el precio.';
+  if(!navigator.onLine&&!name&&!best)msg='Sin conexión: búscalo en tus compras o escribe el precio.';
+  $('pItem').textContent=msg;
+  $('iPrice').focus();
 }
 
 /* ---- lectura del código de barras desde una foto ---- */
