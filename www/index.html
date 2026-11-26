@@ -293,7 +293,7 @@ function render(){
   $('list').innerHTML=items.length?items.slice().reverse().map(i=>`<li data-id="${esc(i.id)}" class="${i.id===newId?'new':''}">
     <div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}</div></div>
     <div class="pr">${eur.format(lineTotal(i))}</div>
-    <div class="row2"><span class="unit">${i.mode==='kg'?(i.qty>1?i.qty+' × ':'')+fkg(i.grams)+' × '+eur.format(i.perKg)+'/kg':i.qty+' × '+eur.format(i.price)} ${offerTag(i)}</span>
+    <div class="row2"><span class="unit">${i.scale?'<span class="tag">Báscula</span>':''}${i.mode==='kg'?(i.qty>1?i.qty+' × ':'')+fkg(i.grams)+' × '+eur.format(i.perKg)+'/kg':i.qty+' × '+eur.format(i.price)} ${offerTag(i)}</span>
       <button class="ico" data-a="minus" aria-label="Quitar una unidad">−</button><span class="qty">${i.qty}</span>
       <button class="ico" data-a="plus" aria-label="Añadir una unidad">+</button>
       <button class="ico" data-a="edit" aria-label="Editar">✎</button>
@@ -313,15 +313,15 @@ function renderSug(){
   $('sug').innerHTML=list.map((r,i)=>`<button type="button" data-i="${CAT.indexOf(r)}"><span>${esc(r[0])}<small>${r[2]?'Varía (peso u ofertas) · media':'Último precio '+esc(r[4])} · ${r[3]} ${r[3]===1?'vez':'veces'}</small></span><b>${eur.format(r[1])}</b></button>`).join('');
 }
 $('sug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const r=CAT[+b.dataset.i];
-  $('iName').value=r[0];$('iPrice').value=r[1].toFixed(2).replace('.',',');
-  $('note').hidden=!r[2];$('note').textContent=r[2]?'Este precio cambia según el peso o las ofertas: compruébalo con la etiqueta.':'';
+  const sc=isScale($('iCode').value.trim());$('iName').value=r[0];if(!sc)$('iPrice').value=r[1].toFixed(2).replace('.',',');
+  if(!sc){$('note').hidden=!r[2];$('note').textContent=r[2]?'Este precio cambia según el peso o las ofertas: compruébalo con la etiqueta.':''}
   renderSug();$('iPrice').focus();$('iPrice').select()};
 $('iName').addEventListener('input',renderSug);
 $('sugl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.dataset.l);if(!x)return;
   listLink=x.id;$('iName').value=x.name;const k=byName[norm(x.name)];
-  if(x.price!=null){setMode('unit');$('iPrice').value=(k?k.price:x.price).toFixed(2).replace('.',',')}
+  if(x.price!=null&&!isScale($('iCode').value.trim())){setMode('unit');$('iPrice').value=(k?k.price:x.price).toFixed(2).replace('.',',')}
   if((+x.qty||1)>1)$('iQty').value=x.qty;
-  $('note').hidden=true;renderSug();calc();$('iPrice').focus();$('iPrice').select()};
+  if(!isScale($('iCode').value.trim()))$('note').hidden=true;renderSug();calc();$('iPrice').focus();$('iPrice').select()};
 function openItem(opts){
   editing=opts.edit||null;
   $('tItem').textContent=editing?'Editar artículo':'Añadir artículo';
@@ -338,7 +338,7 @@ function openItem(opts){
   $('busy').style.display=opts.busy?'block':'none';$('fields').hidden=!!opts.busy;$('save').disabled=!!opts.busy;
   renderSug();
   $('sItem').classList.add('on');
-  if(!opts.busy)setTimeout(()=>$(opts.code&&opts.price==null?'iName':opts.code?'iPrice':opts.focus||'iName').focus(),60);
+  if(!opts.busy)setTimeout(()=>$(opts.focus&&opts.code?opts.focus:opts.code&&opts.price==null?'iName':opts.code?'iPrice':opts.focus||'iName').focus(),60);
 }
 function closeItem(){$('sItem').classList.remove('on');editing=null;listLink=null}
 function setMode(m){mode=m;$('mUnit').classList.toggle('on',m==='unit');$('mKg').classList.toggle('on',m==='kg');$('unitF').hidden=m==='kg';$('kgF').hidden=m!=='kg';calc()}
@@ -356,7 +356,16 @@ function calc(){
 }
 ['iPrice','iQty','iKg','iGr'].forEach(id=>$(id).addEventListener('input',calc));$('iOffer').addEventListener('change',calc);
 
+/* etiquetas de báscula: EAN-13 que empieza por 2 = 2 + artículo (6 cifras) + importe en céntimos (5) + control */
+const isScale=c=>/^2\d{12}$/.test(c);
+const scaleKey=c=>'plu:'+c.slice(0,7);
+const scalePrice=c=>parseInt(c.slice(7,12),10)/100;
+function scaleText(code){const s=known[scaleKey(code)],p=scalePrice(code);
+  return {s,p,approx:s&&s.perKg?'≈ '+fkg(Math.round(p/s.perKg*1000))+' a '+eur.format(s.perKg)+'/kg':''}}
 function prefillFromCode(code,msg){
+  if(isScale(code)){const {s,p,approx}=scaleText(code);
+    openItem({code,name:s?s.name:'',price:p,msg:s?'Etiqueta de báscula: '+s.name+'. Precio leído del código.':'Etiqueta de báscula: el precio lo he leído del código. Dime qué producto es; la próxima vez lo reconoceré solo.',note:approx?approx+'. Compruébalo con la etiqueta.':'Compruébalo con el importe impreso en la etiqueta.',focus:s?'iPrice':'iName'});
+    return}
   const k=known[code];let price=k?k.price:null,note='';
   if(!k&&/^2\d{12}$/.test(code)){price=parseInt(code.slice(7,12),10)/100;note='Parece una etiqueta de peso (fruta, charcutería…). He sacado el precio del código: compruébalo con la etiqueta.'}
   openItem({code,name:k?k.name:'',price,mode:k&&k.mode,perKg:k&&k.perKg,msg:msg||(k?'Ya lo habías comprado: precio recordado.':'Código nuevo: buscando en Open Food Facts…'),note});
@@ -467,7 +476,7 @@ function fillCode(code){
     if(k.mode==='kg'){setMode('kg');if(!$('iKg').value.trim())$('iKg').value=k.perKg.toFixed(2).replace('.',',')}
     else if(!$('iPrice').value.trim())$('iPrice').value=k.price.toFixed(2).replace('.',',');
     $('pItem').textContent='Código leído: ya lo tenías guardado.';renderSug();calc();return}
-  if(/^2\d{12}$/.test(code)){if(!$('iPrice').value.trim())$('iPrice').value=(parseInt(code.slice(7,12),10)/100).toFixed(2).replace('.',',');$('pItem').textContent='Etiqueta de peso: precio sacado del código, compruébalo.';calc();return}
+  if(isScale(code)){const {s:sc,p,approx}=scaleText(code);setMode('unit');$('iPrice').value=p.toFixed(2).replace('.',',');if(sc&&!$('iName').value.trim())$('iName').value=sc.name;$('pItem').textContent='Etiqueta de báscula: precio leído del código.'+(approx?' '+approx+'.':'');renderSug();calc();return}
   $('pItem').textContent='Código leído. Buscando en Open Food Facts…';lookupOnline(code);
 }
 $('scanManual').onclick=()=>{const tg=scanTarget;stopScan();if(tg==='code'){$('iCode').focus();return}openItem({msg:'Busca el producto por nombre o escribe el código.',focus:'iName'})};
@@ -561,7 +570,8 @@ $('fItem').onsubmit=e=>{
     rec={code,name,mode:'unit',price,offer:$('iOffer').value};
   }
   const qty=rec.mode==='kg'&&!editing?1:Math.max(1,parseInt($('iQty').value,10)||1);
-  if(code&&!/^2\d{12}$/.test(code))known[code]=rec.mode==='kg'?{name,price:rec.perKg,mode:'kg',perKg:rec.perKg}:{name,price:rec.price};
+  if(code&&isScale(code)){const o=known[scaleKey(code)]||{};known[scaleKey(code)]={name,perKg:rec.mode==='kg'?rec.perKg:o.perKg};rec.scale=true}
+  else if(code)known[code]=rec.mode==='kg'?{name,price:rec.perKg,mode:'kg',perKg:rec.perKg}:{name,price:rec.price};
   if(name&&rec.mode==='unit'&&!/^2\d{12}$/.test(code))byName[norm(name)]={price:rec.price,date:new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})};
   let msg;
   if(editing){const it=items.find(i=>i.id===editing);Object.assign(it,rec);if(rec.mode!=='kg')it.qty=qty;msg='Artículo actualizado'}
