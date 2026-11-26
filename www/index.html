@@ -36,6 +36,7 @@ button{font-family:inherit}
 .bars{display:grid;gap:6px;padding:4px 18px 12px}.bars div{display:grid;grid-template-columns:3.2em minmax(0,1fr) 5.2em;gap:8px;align-items:center;font-size:13px;color:var(--mute)}.bars i{display:block;height:12px;border-radius:9px;background:var(--plum2)}.bars b{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 #histUl>li{border-top:1px solid var(--line)}#histUl summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 18px;cursor:pointer;list-style:none;min-height:48px}#histUl summary::-webkit-details-marker{display:none}#histUl summary small{display:block;color:var(--mute);font-size:13px}.hdet{padding:0 18px 12px;font-size:14px;color:var(--mute)}.hdet div{display:flex;justify-content:space-between;gap:10px}
 .storelist{display:flex;flex-direction:column;gap:6px;margin-top:6px}.storelist button{min-height:52px;border-radius:16px;border:2px solid transparent;background:var(--bg);color:var(--ink);font:600 16px Onest,sans-serif;text-align:left;padding:0 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}.storelist button.on{border-color:var(--tomato)}
+.sharecode{font:800 30px Unbounded,sans-serif;letter-spacing:.08em;text-align:center;padding:18px;border-radius:18px;background:var(--bg);margin:6px 0 12px;user-select:all}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -167,7 +168,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><button class="linkbtn" id="editList">Preparar</button></div>
+    <div class="shead"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><span><button class="linkbtn" id="shareList">Compartir</button> <button class="linkbtn" id="editList">Preparar</button></span></div>
     <ul id="shopUl"></ul>
   </section>
 
@@ -278,6 +279,26 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </form>
 </div>
 
+<div class="scrim" id="sShare" role="dialog" aria-modal="true" aria-labelledby="tShare">
+  <form class="sheet" id="fShare">
+    <h2 id="tShare">Lista compartida</h2>
+    <div id="shareOff">
+      <p>Comparte la lista con tu familia: lo que uno añade o tacha lo ven los demás.</p>
+      <button type="button" class="btn primary photo" id="shareNew">Crear lista compartida</button>
+      <label for="iJoin">¿Te han pasado un código?</label>
+      <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iJoin" autocomplete="off" autocapitalize="characters" placeholder="Ej. K7Q2M9XW4B" maxlength="12"><button type="button" class="btn ghost" id="shareJoin" style="min-height:52px;font-size:15px">Unirme</button></div>
+    </div>
+    <div id="shareOn" hidden>
+      <p>Pasa este código a quien quieras que vea y edite la lista:</p>
+      <div class="sharecode" id="shareCode"></div>
+      <button type="button" class="btn primary photo" id="shareCopy">Copiar código</button>
+      <div class="calc" id="shareMsg"></div>
+      <button type="button" class="linkbtn" id="shareLeave">Dejar de compartir en este móvil</button>
+    </div>
+    <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="shareClose">Cerrar</button></div>
+  </form>
+</div>
+
 <div class="scrim" id="sAsk" role="dialog" aria-modal="true" aria-labelledby="tAsk">
   <form class="sheet" id="fAsk">
     <h2 id="tAsk"></h2>
@@ -320,7 +341,7 @@ let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=nul
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
 let tT=null;function toast(t,undo){$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
-function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history)}
+function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync()}
 const r2=n=>Math.round(n*100)/100;
 const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
 function offerDisc(o,p,q){const d=OFF[o];return d?Math.floor(q/d[1])*p*d[2]:0}
@@ -432,14 +453,20 @@ async function getJSON(url){
 const fdate=d=>{const [y,m,dd]=String(d||'').split('-');return dd?dd+'/'+m+'/'+y:''};
 async function lookupOnline(code){
   const still=()=>$('sItem').classList.contains('on')&&$('iCode').value.trim()===code&&!editing;
-  const [pr,off]=await Promise.all([
+  const [sh,pr,off]=await Promise.all([sbRpc('get_prices',{p_code:code}).catch(()=>null),
     getJSON('https://prices.openfoodfacts.org/api/v1/prices?product_code='+code+'&currency=EUR&order_by=-date&size=50'),
     getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name_es,product_name,brands,quantity')]);
   if(!still())return;
+  const shr=Array.isArray(sh)?sh:[],shHere=shr.find(x=>norm(x.store)===norm(store)),shName=shr.length&&shr[0].name||'';
+  if(shName&&!$('iName').value.trim()){$('iName').value=shName;renderSug()}
+  if(shHere&&!$('iPrice').value.trim()){const v=Number(shHere.price);
+    if(shHere.unit==='kg'){setMode('kg');$('iKg').value=v.toFixed(2).replace('.',',')}else $('iPrice').value=v.toFixed(2).replace('.',',');
+    $('note').hidden=false;$('note').textContent='Precio compartido por '+(shHere.n>1?shHere.n+' personas':'otra persona')+' en '+shHere.store+' ('+new Date(shHere.last_at).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})+'). Compruébalo con la etiqueta.';
+    calc();$('pItem').textContent='Encontrado en los precios compartidos de Mi carrito.';$('iPrice').focus();return}
   const p=off&&off.status===1&&off.product||{},items=(pr&&pr.items)||[];
   let name=[p.product_name_es||p.product_name||(items[0]&&items[0].product&&items[0].product.product_name)||'',p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ');
   const es=items.filter(i=>i.location&&i.location.osm_address_country_code==='ES'),
-        crf=es.filter(i=>/carrefour/i.test((i.location.osm_brand||'')+' '+(i.location.osm_name||'')));
+        crf=es.filter(i=>norm((i.location.osm_brand||'')+' '+(i.location.osm_name||'')).includes(norm(store)));
   const best=crf[0]||es[0]||null;
   let msg='';
   if(name&&!$('iName').value.trim()){$('iName').value=name;renderSug()}
@@ -447,9 +474,10 @@ async function lookupOnline(code){
     const n=Number(best.price);
     if(isFinite(n)&&n>0){$('iPrice').value=n.toFixed(2).replace('.',',');
       const L=best.location,where=[L.osm_name||'',L.osm_address_city||''].filter(Boolean).join(', ');
-      $('note').hidden=false;$('note').textContent='Precio compartido por otra persona'+(where?' en '+where:'')+(best.date?' el '+fdate(best.date):'')+(best.price_is_discounted?' (estaba de oferta)':'')+(crf[0]?'':' — no es de un Carrefour')+'. Compruébalo con la etiqueta.'}
+      $('note').hidden=false;$('note').textContent='Precio compartido por otra persona'+(where?' en '+where:'')+(best.date?' el '+fdate(best.date):'')+(best.price_is_discounted?' (estaba de oferta)':'')+(crf[0]?'':' — no es de '+store)+'. Compruébalo con la etiqueta.'}
   }
-  msg=name&&best?'Encontrado en Open Food Facts.':name?'Encontrado el nombre en Open Food Facts; nadie ha compartido aún su precio en España.':best?'Hay un precio compartido, pero no el nombre.':'No está en Open Food Facts: búscalo en tus compras o escribe el precio.';
+  if(!best&&shr.length&&!$('iPrice').value.trim()){const o=shr.sort((a,b)=>new Date(b.last_at)-new Date(a.last_at))[0];$('note').hidden=false;$('note').textContent='En '+o.store+' lo han visto a '+eur.format(Number(o.price))+(o.unit==='kg'?'/kg':'')+'.'}
+  msg=shName?'Encontrado en los productos compartidos de Mi carrito.':name&&best?'Encontrado en Open Food Facts.':name?'Encontrado el nombre en Open Food Facts; nadie ha compartido aún su precio en España.':best?'Hay un precio compartido, pero no el nombre.':'No está en Open Food Facts: búscalo en tus compras o escribe el precio.';
   if(!navigator.onLine&&!name&&!best)msg='Sin conexión: búscalo en tus compras o escribe el precio.';
   $('pItem').textContent=msg;
   $('iPrice').focus();
@@ -644,6 +672,7 @@ $('fItem').onsubmit=e=>{
   if(code&&isScale(code)){const o=getScale(code)||{};known[scaleKey(code)]={name,perKg:rec.mode==='kg'?rec.perKg:o.perKg};rec.scale=true}
   else if(code){const prev=known[code]||{};known[code]=setPrice(Object.assign(prev,rec.mode==='kg'?{name,mode:'kg',perKg:rec.perKg}:{name,mode:'unit'}),rec.mode==='kg'?rec.perKg:rec.price)}
   if(name&&rec.mode==='unit'&&!isScale(code)){const k=norm(name);byName[k]=setPrice(byName[k]||{},rec.price)}
+  if(code&&!isScale(code)&&/^\d{8,14}$/.test(code))queuePrice({p_code:code,p_name:name,p_store:store,p_price:rec.mode==='kg'?rec.perKg:rec.price,p_unit:rec.mode==='kg'?'kg':'unit',p_device:device});
   let msg;
   if(editing){const it=items.find(i=>i.id===editing);Object.assign(it,rec);if(rec.mode!=='kg')it.qty=qty;msg='Artículo actualizado'}
   else{
@@ -762,6 +791,59 @@ function renderHistory(){
       <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}</div></details></li>`}).join('');
 }
 
+/* ---- Supabase: precios compartidos y lista compartida ---- */
+const SB_URL='',SB_KEY='';
+const sbOn=()=>!!(SB_URL&&SB_KEY);
+let device=load('cart.device','');if(!device){device=(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));put('cart.device',device)}
+async function sbRpc(fn,args){
+  if(!sbOn())return null;
+  const h={'Content-Type':'application/json',apikey:SB_KEY};if(!SB_KEY.startsWith('sb_'))h.Authorization='Bearer '+SB_KEY;
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
+  try{const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:h,body:JSON.stringify(args),signal:c.signal});
+    if(!r.ok)throw new Error(r.status);const tx=await r.text();return tx?JSON.parse(tx):null}finally{clearTimeout(t)}
+}
+let outbox=load('cart.outbox',[]),flushing=false;
+function queuePrice(a){if(!sbOn())return;outbox.push(a);if(outbox.length>300)outbox=outbox.slice(-300);put('cart.outbox',outbox);flushPrices()}
+async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)return;flushing=true;
+  try{while(outbox.length){await sbRpc('add_price',outbox[0]);outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
+/* lista compartida: se suben los cambios respecto a la última sincronización y se bajan los de los demás */
+let listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
+const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done]);
+function scheduleSync(){if(!listCode||!sbOn())return;clearTimeout(syncT);syncT=setTimeout(syncList,800)}
+async function syncList(){
+  if(!listCode||!sbOn()||syncing||!navigator.onLine)return;syncing=true;
+  try{
+    const ch=shop.filter(x=>snap[x.id]!==sig(x)).map(x=>({id:x.id,name:x.name,price:x.price??'',qty:x.qty||1,done:!!x.done,deleted:false}));
+    const ids=new Set(shop.map(x=>x.id));
+    for(const id of Object.keys(snap))if(!ids.has(id))ch.push({id,name:'-',price:'',qty:1,done:false,deleted:true});
+    if(ch.length)await sbRpc('put_list',{p_list:listCode,p_items:ch});
+    const rows=await sbRpc('get_list',{p_list:listCode,p_since:listSince?new Date(Date.parse(listSince)-30000).toISOString():null})||[];
+    let changed=false;
+    for(const r of rows){const i=shop.findIndex(x=>x.id===r.id);
+      if(r.deleted){if(i>=0){shop.splice(i,1);changed=true}}
+      else{const v={name:r.name,price:r.price==null?null:Number(r.price),qty:r.qty,done:r.done};
+        if(i<0){shop.push({id:r.id,...v});changed=true}else if(sig(shop[i])!==sig(v)){Object.assign(shop[i],v);changed=true}}
+      if(!listSince||r.updated_at>listSince)listSince=r.updated_at}
+    snap={};for(const x of shop)snap[x.id]=sig(x);
+    put('cart.listsnap',snap);put('cart.listsince',listSince);put('cart.shop',shop);
+    if(changed){renderShop();if($('sList').classList.contains('on'))renderListEditor()}
+    $('shareMsg').textContent='Sincronizada '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){$('shareMsg').textContent='Sin conexión: se sincronizará cuando vuelva la cobertura.'}
+  finally{syncing=false}
+}
+function renderShare(){const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
+function linkList(code){listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList()}
+$('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');syncList()};
+$('shareClose').onclick=()=>$('sShare').classList.remove('on');
+$('fShare').onsubmit=e=>e.preventDefault();
+$('shareNew').onclick=()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',b=crypto.getRandomValues(new Uint8Array(10));linkList([...b].map(x=>A[x%A.length]).join(''))};
+$('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-Z0-9]/g,'');if(v.length!==10){toast('El código tiene 10 letras y números');return}linkList(v);toast('Unido a la lista compartida')};
+$('shareCopy').onclick=async()=>{try{await navigator.clipboard.writeText(listCode);$('shareMsg').textContent='Código copiado'}catch(e){$('shareMsg').textContent='Mantén pulsado el código para copiarlo'}};
+$('shareLeave').onclick=()=>{listCode='';put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
+setInterval(()=>{if(!document.hidden)syncList()},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices()}});
+addEventListener('online',()=>{syncList();flushPrices()});
+
 /* ---- copia de seguridad ---- */
 function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history}}
 function openBackup(){
@@ -801,10 +883,10 @@ function restore(txt){
 $('bakFile').onclick=()=>{$('bakIn').value='';$('bakIn').click()};
 $('bakIn').onchange=async e=>{const f=e.target.files[0];if(f)restore(await f.text())};
 $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false;t.focus();$('bakPaste').textContent='Recuperar';return}restore(t.value)};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd'].forEach(id=>$(id).classList.remove('on'))});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-render();
+render();renderShare();syncList();flushPrices();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
