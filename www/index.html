@@ -66,6 +66,10 @@ button{font-family:inherit}
 .up{color:var(--warn);font-weight:700}.down{color:var(--ok);font-weight:700}
 .thumb{width:36px;height:36px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
 #list>li .nmrow{display:flex;gap:10px;align-items:center}
+.tk{margin-top:12px;border-radius:16px;background:var(--bg);padding:12px 14px;font-size:14px}
+.tk h3{margin:0 0 6px;font:700 15px Onest,sans-serif}.tk .r{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line)}
+.tk .r:first-of-type{border-top:0}.tk .r small{display:block;color:var(--mute);font-size:12px}.tk .r b{white-space:nowrap;font-variant-numeric:tabular-nums}
+.tk .bad b{color:var(--warn)}.tk .ok{color:var(--ok);font-weight:600}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -312,6 +316,9 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <label for="iPaid">¿Cuánto has pagado en caja? (opcional)</label>
     <input id="iPaid" class="big" inputmode="decimal" autocomplete="off" placeholder="0,00">
     <div class="calc" id="endCalc">Si lo pones, te aviso si en caja te han cobrado algo de más.</div>
+    <button type="button" class="btn ghost photo" id="tkBtn" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Escanear el ticket de caja</button>
+    <input type="file" id="tkCam" accept="image/*" capture="environment" hidden>
+    <div id="tkRes"></div>
     <div class="sbtns"><button type="button" class="btn ghost" id="endNo">Cancelar</button><button class="btn primary">Guardar compra</button></div>
   </form>
 </div>
@@ -1036,10 +1043,79 @@ function endCalc(){const t=cartTotal(),p=parseMoney($('iPaid').value),c=$('endCa
   if(isNaN(p)){c.textContent='Si lo pones, te aviso si en caja te han cobrado algo de más.';return}
   const d=r2(p-t);
   if(d>0.01){c.className='calc warn';c.textContent='Has pagado '+eur.format(d)+' más de lo que marca la app. Revisa el ticket: puede ser un precio cambiado o algo cobrado dos veces.'}
-  else if(d<-0.01)c.textContent='Has pagado '+eur.format(-d)+' menos: descuentos, cupones o Club Carrefour.';
+  else if(d<-0.01)c.textContent='Has pagado '+eur.format(-d)+' menos: descuentos, cupones o algo que no se cobró.';
   else c.textContent='Coincide con la app.'}
 $('iPaid').addEventListener('input',endCalc);
+/* ---- escanear el ticket de caja ---- */
+let tkLines=[],tkTotal=null;
+const TK_SKIP=/total|subtotal|iva|base imp|entregad|cambio|tarjeta|efectivo|visa|mastercard|importe|cuota|nif|cif|factura|ticket|caja|operaci|autoriz|gracias|devoluc|cliente|club|cheque|saldo|acumul|puntos|fecha|hora|tel[eé]f|www|c\/|avda|s\.a\.|descuento total|n[ºo] art|art[ií]culos|redondeo/i;
+function parseReceipt(text){
+  const out=[];let total=null;
+  for(let raw of String(text).split('\n')){
+    const t=raw.replace(/\s+/g,' ').trim();if(t.length<3)continue;
+    const m=t.match(/(-?\d{1,4}[,.]\d{2})\s*(€|[A-Z]{1,2})?\s*$/);if(!m)continue;
+    const amount=parseFloat(m[1].replace(',','.'));
+    if(/total/i.test(t)&&!/sub/i.test(t)&&amount>0){if(total==null||amount>total)total=amount;continue}
+    if(TK_SKIP.test(t))continue;
+    let name=t.slice(0,m.index).trim();
+    let qty=1;const q=name.match(/^(\d{1,2})\s+(?=\D)/);if(q){qty=parseInt(q[1],10);name=name.slice(q[0].length)}
+    name=name.replace(/\s*\d+[,.]\d{2,3}\s*(€|kg|\/kg|x)?\s*/gi,' ').replace(/\b\d+\s*x\s*/gi,' ').replace(/[^\p{L}\d .,%/-]/gu,'').replace(/\s+/g,' ').trim();
+    if(!/[a-zñ]{3,}/i.test(name))continue;
+    out.push({name,qty,amount,disc:amount<0})}
+  return {lines:out,total}}
+const tkWords=t=>norm(t).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!/\d/.test(w)&&!/^(carrefour|crf|cdc|hacendado|deliplus|bosque|verde)$/.test(w));
+function tkScore(a,b){const A=tkWords(a),B=tkWords(b);if(!A.length||!B.length)return 0;let n=0;for(const x of A)if(B.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4))))n++;return n/Math.max(A.length,Math.min(B.length,3))}
+function compareReceipt(){
+  /* junta líneas repetidas del mismo producto y le resta sus descuentos */
+  const G=[];
+  for(const l of tkLines.filter(l=>!l.disc)){const k=tkWords(l.name).join(' ');const g=G.find(g=>g.k===k);if(g){g.amount=r2(g.amount+l.amount);g.qty+=l.qty;g.n++}else G.push({k,name:l.name,amount:l.amount,qty:l.qty,n:1,dsc:0})}
+  const disc=[];
+  for(const d of tkLines.filter(l=>l.disc)){let best=null,bs=0;for(const g of G){const sc=tkScore(g.name,d.name.replace(/\d+\s*%|2a|ud|unidad|dto|descuento/gi,' '));if(sc>bs){bs=sc;best=g}}
+    if(best&&bs>=.5){best.amount=r2(best.amount+d.amount);best.dsc=r2(best.dsc+d.amount)}else disc.push(d)}
+  const used=new Set(),rows=[];
+  for(const it of items){let best=-1,bs=0;
+    G.forEach((g,i)=>{if(used.has(i))return;const sc=tkScore(it.name||'',g.name);if(sc>bs){bs=sc;best=i}});
+    if(best>=0&&bs>=.5){used.add(best);rows.push({it,l:G[best]})}else rows.push({it,l:null})}
+  const extra=G.filter((g,i)=>!used.has(i));
+  return {rows,extra,disc}}
+function renderReceipt(){
+  if(!tkLines.length){$('tkRes').innerHTML='';return}
+  const {rows,extra,disc}=compareReceipt();
+  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-lineTotal(r.it))>=0.01),miss=rows.filter(r=>!r.l);
+  let h='<div class="tk">';
+  h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':'El ticket coincide con la app'}</h3>`;
+  if(!diff.length&&!extra.length)h+=`<div class="ok">${rows.length-miss.length} productos comprobados${miss.length?' · '+miss.length+' no los he encontrado en el ticket':''}.</div>`;
+  for(const r of diff){const d=r2(r.l.amount-lineTotal(r.it));h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(lineTotal(r.it))}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
+  for(const l of extra)h+=`<div class="r bad"><span>${esc(l.name)}<small>Cobrado en el ticket, pero no está en la app${l.qty>1?' ('+l.qty+' uds)':''}</small></span><b>${eur.format(l.amount)}</b></div>`;
+  if(diff.length||extra.length)for(const r of miss)h+=`<div class="r"><span>${esc(r.it.name)}<small>En la app, pero no lo encuentro en el ticket (puede estar mal leído)</small></span><b>${eur.format(lineTotal(r.it))}</b></div>`;
+  if(disc.length)h+=`<div class="r"><span>Descuentos del ticket<small>${disc.map(l=>esc(l.name)).join(', ')}</small></span><b class="ok">${eur.format(r2(disc.reduce((a,l)=>a+l.amount,0)))}</b></div>`;
+  if(diff.length)h+=`<button type="button" class="linkbtn" id="tkFix" style="display:block">Corregir esos precios en la app con los del ticket</button>`;
+  if(extra.length)h+=`<button type="button" class="linkbtn" id="tkAdd" style="display:block">Añadir al carrito lo cobrado que falta (${extra.length})</button>`;
+  h+=`<div style="font-size:12px;color:var(--mute);margin-top:6px">${tkLines.length} líneas leídas. Si el ticket es largo, haz otra foto de la parte que falte.</div></div>`;
+  $('tkRes').innerHTML=h}
+$('tkBtn').onclick=()=>{$('tkCam').value='';$('tkCam').click()};
+$('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  const b=$('tkBtn');b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar un poco)';
+  try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
+    const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});
+    const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});URL.revokeObjectURL(url);
+    const r=parseReceipt(data.text),seen=new Set(tkLines.map(l=>l.name+'|'+l.amount));
+    for(const l of r.lines)if(!seen.has(l.name+'|'+l.amount))tkLines.push(l);
+    if(r.total!=null){tkTotal=r.total;if(!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}}
+    renderReceipt();
+    if(!r.lines.length&&r.total==null){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. Ponlo plano, con luz y que se vea entero o por partes.</span></div></div>'}
+  }catch(err){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. La primera vez necesita conexión para preparar la lectura.</span></div></div>'}
+  finally{b.disabled=false;b.lastChild.textContent=tkLines.length?'Añadir otra foto del ticket':'Escanear el ticket de caja'}};
+$('tkRes').onclick=e=>{
+  if(e.target.closest('#tkAdd')){const {extra}=compareReceipt();for(const g of extra){const nm=g.name.toLowerCase().replace(/^./,c=>c.toUpperCase());items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),code:'',name:nm,mode:'unit',price:r2(g.amount/(g.qty||1)),qty:g.qty||1,offer:''})}
+    save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast('Añadido al carrito lo que faltaba');return}
+  if(!e.target.closest('#tkFix'))return;const {rows}=compareReceipt();let n=0;
+  for(const r of rows){if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
+    const q=r.it.qty||1,up=r2((r.l.amount-(r.l.dsc||0))/q);if(r.l.dsc){r.it.price=up}else{r.it.offer='';r.it.price=up}
+    if(r.it.code&&known[r.it.code])setPrice(known[r.it.code],up);if(r.it.name){const k=norm(r.it.name);byName[k]=setPrice(byName[k]||{},up)}n++}
+  save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast(n===1?'1 precio corregido con el ticket':n+' precios corregidos con el ticket')};
 $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');return}
+  tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
   $('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';$('iPaid').value='';endCalc();$('sEnd').classList.add('on');setTimeout(()=>$('iPaid').focus(),60)};
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
