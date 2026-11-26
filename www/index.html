@@ -792,7 +792,7 @@ function renderHistory(){
 }
 
 /* ---- Supabase: precios compartidos y lista compartida ---- */
-const SB_URL='',SB_KEY='';
+const SB_URL='https://rtygmlehoyvkozeihjnk.supabase.co',SB_KEY='sb_publishable_9Os1C-lYJDa9u1j_I8YUBQ_q8LXX1A2';
 const sbOn=()=>!!(SB_URL&&SB_KEY);
 let device=load('cart.device','');if(!device){device=(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));put('cart.device',device)}
 async function sbRpc(fn,args){
