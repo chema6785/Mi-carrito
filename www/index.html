@@ -41,6 +41,7 @@ button{font-family:inherit}
 .members li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.members small{color:var(--mute);font-size:13px;white-space:nowrap}
 #sShare .linkbtn:not([hidden]){display:block;text-align:left}
 .shop-h{flex-wrap:wrap}.hbtns{display:flex;gap:14px}
+.shopother{padding:6px 18px 12px;font-size:13px;color:var(--mute)}.shopother:empty{display:none}.shopother .linkbtn{font-size:13px;min-height:36px;padding:4px 6px}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -172,8 +173,9 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead shop-h"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button></span></div>
+    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button></span></div>
     <ul id="shopUl"></ul>
+    <div class="shopother" id="shopOther"></div>
   </section>
 
   <section class="ticket">
@@ -348,6 +350,8 @@ function compareNote(rec){const here=priceFor(rec);if(!here)return '';const o=ot
 const CAT0=CAT.map(r=>r.slice());
 function applyByName(){CAT.forEach((r,i)=>{const o=priceFor(byName[norm(r[0])]);if(o&&o.here){r[1]=o.p;r[2]=0;r[4]=o.d||r[4]}else{r[1]=CAT0[i][1];r[2]=CAT0[i][2];r[4]=CAT0[i][4]}})}
 applyByName();
+shop.forEach(x=>{if(!x.store)x.store=store});
+const cur=()=>shop.filter(x=>x.store===store);
 let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
@@ -390,7 +394,7 @@ function renderSug(){
   const q=norm($('iName').value.trim()),words=q.split(/\s+/).filter(Boolean);
   const list=(words.length?CAT.filter(r=>words.every(w=>norm(r[0]).includes(w))):CAT).slice(0,words.length?8:6);
   $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':'No está en tus tickets: pon el precio a mano'):'Lo que más compras';
-  const pend=!listLink&&!editing?shop.filter(x=>!x.done).slice(0,5):[];
+  const pend=!listLink&&!editing?cur().filter(x=>!x.done).slice(0,5):[];
   $('sugl').hidden=!pend.length;
   $('sugl').innerHTML=pend.length?'<div class="sugt">¿Es algo de tu lista?</div><div class="sug">'+pend.map(x=>`<button type="button" data-l="${esc(x.id)}" class="fromlist"><span>${esc(x.name)}<small>De tu lista de la compra</small></span><b>${x.price!=null?eur.format(x.price):''}</b></button>`).join('')+'</div>':'';
   $('sug').innerHTML=list.map((r,i)=>`<button type="button" data-i="${CAT.indexOf(r)}"><span>${esc(r[0])}<small>${r[2]?'Varía (peso u ofertas) · media':'Último precio '+esc(r[4])} · ${r[3]} ${r[3]===1?'vez':'veces'}</small></span><b>${eur.format(r[1])}</b></button>`).join('');
@@ -631,7 +635,7 @@ function matchKnownName(n){
   const nw=new Set(W(n));if(!nw.size)return null;
   const score=t=>{const w=W(t);return w.length&&w.every(x=>nw.has(x))?w.length:0};
   let best=null,bs=0;
-  for(const x of shop.filter(x=>!x.done)){const sc=score(x.name)+.5;if(sc>bs){bs=sc;best={name:x.name,listId:x.id}}}
+  for(const x of cur().filter(x=>!x.done)){const sc=score(x.name)+.5;if(sc>bs){bs=sc;best={name:x.name,listId:x.id}}}
   if(!best)for(const r of CAT){const sc=score(r[0]);if(sc>bs){bs=sc;best={name:r[0]}}}
   return best;
 }
@@ -690,7 +694,7 @@ $('fItem').onsubmit=e=>{
     const same=rec.mode==='unit'&&code&&items.find(i=>i.code===code&&i.price===rec.price&&i.mode!=='kg');
     if(same){same.qty+=qty;same.offer=rec.offer||same.offer;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,...rec,qty})}
     msg='Añadido: '+(name||'artículo')+' · '+eur.format(rec.mode==='kg'?rec.price:rec.price*qty);
-    const li=listLink?shop.find(x=>x.id===listLink):shop.find(x=>!x.done&&(code&&x.code===code||name&&norm(x.name)===norm(name)));
+    const li=listLink?shop.find(x=>x.id===listLink):cur().find(x=>!x.done&&(code&&x.code===code||name&&norm(x.name)===norm(name)));
     if(li){li.done=true;li.cartId=newId;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
   }
   toast(msg);save();render();closeItem();
@@ -717,19 +721,23 @@ function ask(o,cb){
 $('askNo').onclick=()=>$('sAsk').classList.remove('on');
 $('fAsk').onsubmit=e=>{e.preventDefault();$('sAsk').classList.remove('on');askCb&&askCb($('iAsk').value)};
 $('setBudget').onclick=()=>ask({title:'Límite de gasto',text:'Te aviso cuando te acerques. Déjalo vacío para quitarlo.',field:'Límite (€)',value:budget?String(budget).replace('.',','):'',ok:'Guardar'},v=>{const n=parseMoney(v);budget=isNaN(n)?0:n;save();render();toast(budget?'Límite: '+eur.format(budget):'Sin límite')});
-$('clear').onclick=()=>{if(!items.length)return;ask({title:'¿Vaciar el carrito?',text:'Se borran los artículos de esta compra. Los precios recordados se mantienen.',ok:'Vaciar'},()=>{lastRemoved={list:items.slice()};items=[];shop.forEach(x=>x.done=false);save();render();toast('Carrito vacío',true)})};
+$('clear').onclick=()=>{if(!items.length)return;ask({title:'¿Vaciar el carrito?',text:'Se borran los artículos de esta compra. Los precios recordados se mantienen.',ok:'Vaciar'},()=>{lastRemoved={list:items.slice()};items=[];cur().forEach(x=>x.done=false);save();render();toast('Carrito vacío',true)})};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){stopScan();closeItem();$('sAsk').classList.remove('on')}});
 
 /* ---- lista de la compra ---- */
 const findPrice=n=>{const k=norm(n),o=priceFor(byName[k]);if(o&&(o.here||!CAT.some(r=>norm(r[0])===k)))return o.p;const c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
 function renderShop(){
-  const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=shop.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
-  const got=shop.length-left.length,np=n=>n===1?'1 producto':n+' productos';
-  $('shopSum').textContent=!shop.length?'Vacía':!got?`${np(shop.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${shop.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
-  $('editList').textContent=shop.length?'Editar':'Preparar';
-  $('shopUl').innerHTML=shop.length?shop.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
+  const L=cur();$('shopTitle').textContent='Lista para '+store;
+  const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=L.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
+  const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
+  $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
+  $('editList').textContent=L.length?'Editar':'Preparar';
+  $('shopUl').innerHTML=L.length?L.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
     :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
+  const oth={};for(const x of shop)if(x.store!==store&&!x.done)oth[x.store]=(oth[x.store]||0)+1;
+  const ok=Object.keys(oth);$('shopOther').innerHTML=ok.length?'También tienes lista en: '+ok.map(k=>`<button type="button" class="linkbtn" data-s="${esc(k)}">${esc(k)} (${oth[k]})</button>`).join(' '):'';
 }
+$('shopOther').onclick=e=>{const b=e.target.closest('button');if(b)useStore(b.dataset.s)};
 $('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
   if(b.dataset.a==='tog'){
     if(x.done){x.done=false;if(x.cartId&&items.some(i=>i.id===x.cartId)){items=items.filter(i=>i.id!==x.cartId);toast('Quitado del carrito: '+x.name)}x.cartId=null;save();render();return}
@@ -740,14 +748,15 @@ $('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=
     toast('Al carrito: '+x.name+' · '+eur.format(price*(x.qty||1))+'. Toca ✎ en el carrito si el precio ha cambiado');save();render();return}
   if(!x.done)openItem({name:x.name,price:x.price,qty:x.qty,listId:x.id,msg:'Escanéalo o confirma el precio de la etiqueta.',focus:'iPrice'})};
 function renderListEditor(){
-  const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(shop.map(x=>norm(x.name)));
+  const L=cur();$('tList').textContent='Lista para '+store;
+  const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(L.map(x=>norm(x.name)));
   let res=(w.length?CAT.filter(r=>w.every(t=>norm(r[0]).includes(t))):CAT.filter(r=>!inList.has(norm(r[0])))).slice(0,w.length?6:8).map(r=>[r[0],r[1]]);
   if(w.length&&!CAT.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null]);
   $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
   $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[1]==null?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
-  $('lcur').innerHTML=shop.length?shop.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'}</small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
-  const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=shop.filter(x=>x.price==null).length;
-  $('pList').textContent=shop.length?'Te costará unos '+eur.format(est)+(np?' (más '+np+' sin precio)':''):'Añade lo que necesitas; el precio sale de tus tickets.';
+  $('lcur').innerHTML=L.length?L.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'}</small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
+  const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=L.filter(x=>x.price==null).length;
+  $('pList').textContent=L.length?'Te costará unos '+eur.format(est)+(np?' (más '+np+' sin precio)':''):'Añade lo que necesitas; el precio sale de tus tickets.';
   searchPublic($('lq').value.trim());
 }
 /* búsqueda por nombre en la base compartida de Mi carrito y en Open Food Facts / Open Products Facts */
@@ -773,21 +782,21 @@ function showPub(q,res){pubRes=res;
   $('lpub').innerHTML=res.length?'<div class="sugt">En la base pública</div><div class="sug">'+res.map((r,i)=>`<button type="button" data-p="${i}"><span>${esc(r.name)}<small>${esc(r.src)}${r.price==null?' · sin precio':''}</small></span><b>${r.price!=null?eur.format(r.price):''}</b></button>`).join('')+'</div>'
     :'<div class="sugt">'+(navigator.onLine?'Tampoco está en la base pública: añádelo con su nombre y pon el precio al comprarlo.':'Sin conexión para buscar en la base pública.')+'</div>'}
 $('lpub').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const r=pubRes[+b.dataset.p];if(!r)return;
-  const it={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:r.name,price:r.price,code:r.code,qty:1,done:false};
+  const it={id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:r.name,price:r.price,code:r.code,qty:1,done:false,store};
   shop.push(it);$('lq').value='';save();renderListEditor();renderShop();toast('Añadido a la lista: '+r.name);
   if(it.price==null&&r.code){const pr=await getJSON('https://prices.openfoodfacts.org/api/v1/prices?product_code='+r.code+'&currency=EUR&order_by=-date&size=30');
     const es=((pr&&pr.items)||[]).filter(i=>i.location&&i.location.osm_address_country_code==='ES'),m=es.find(i=>norm((i.location.osm_brand||'')+' '+(i.location.osm_name||'')).includes(norm(store)))||es[0];
     if(m&&Number(m.price)>0){it.price=Number(m.price);save();renderShop();if($('sList').classList.contains('on'))renderListEditor()}}};
 $('editList').onclick=()=>{$('lq').value='';renderListEditor();$('sList').classList.add('on')};
 $('lq').addEventListener('input',renderListEditor);
-$('lsug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=b.dataset.n,ex=shop.find(x=>norm(x.name)===norm(n));
-  if(ex)ex.qty++;else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:n,price:findPrice(n),qty:1,done:false});
+$('lsug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=b.dataset.n,ex=cur().find(x=>norm(x.name)===norm(n));
+  if(ex)ex.qty++;else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:n,price:findPrice(n),qty:1,done:false,store});
   $('lq').value='';save();renderListEditor();renderShop();$('lq').focus()};
 $('lcur').onclick=e=>{const b=e.target.closest('button');if(!b)return;const i=shop.findIndex(x=>x.id===b.closest('li').dataset.id);if(i<0)return;
   const a=b.dataset.a;if(a==='p')shop[i].qty++;else if(a==='m'){if(shop[i].qty>1)shop[i].qty--;else shop.splice(i,1)}else shop.splice(i,1);
   save();renderListEditor();renderShop()};
 $('fList').onsubmit=e=>{e.preventDefault();$('sList').classList.remove('on');renderShop()};
-$('lClear').onclick=()=>{if(!shop.length)return;shop=[];save();renderListEditor();renderShop()};
+$('lClear').onclick=()=>{if(!cur().length)return;shop=shop.filter(x=>x.store!==store);save();renderListEditor();renderShop()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('sList').classList.remove('on')});
 
 /* ---- tiendas ---- */
@@ -795,7 +804,7 @@ function renderStore(){$('storeName').textContent=store}
 function openStores(){
   $('storeList').innerHTML=stores.map(x=>`<button type="button" data-s="${esc(x)}" class="${x===store?'on':''}"><span>${esc(x)}</span><span>${x===store?'Ahora':''}</span></button>`).join('');
   $('iStore').value='';$('sStore').classList.add('on')}
-function useStore(x){store=x;applyByName();shop.forEach(i=>{if(!i.done){const p=findPrice(i.name);if(p!=null)i.price=p}});save();renderStore();render();$('sStore').classList.remove('on');toast('Comprando en '+x)}
+function useStore(x){store=x;applyByName();cur().forEach(i=>{if(!i.done){const p=findPrice(i.name);if(p!=null)i.price=p}});save();renderStore();render();$('sStore').classList.remove('on');toast('Comprando en '+x)}
 $('storeBtn').onclick=openStores;
 $('storeList').onclick=e=>{const b=e.target.closest('button');if(b)useStore(b.dataset.s)};
 $('fStore').onsubmit=e=>{e.preventDefault();const v=$('iStore').value.trim().replace(/\s+/g,' ');if(!v)return;
@@ -816,7 +825,7 @@ $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');retu
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
   history.unshift({id:Date.now().toString(36),t:Date.now(),store,total:t,paid:isNaN(p)?null:p,saved:r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0)),items:items.map(i=>[i.name||'Artículo',lineTotal(i),i.qty])});
-  items=[];shop.forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
+  items=[];cur().forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
 const spent=h=>h.paid!=null?h.paid:h.total;
 function renderHistory(){
   if(!history.length){$('histBars').innerHTML='';$('histUl').innerHTML='';$('histSum').textContent='Cuando termines una compra, aparecerá aquí';return}
@@ -849,12 +858,12 @@ async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)retu
   try{while(outbox.length){await sbRpc('add_price',outbox[0]);outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
 /* lista compartida: se suben los cambios respecto a la última sincronización y se bajan los de los demás */
 let myName=load('cart.myname',''),lastBeat=0,members=[],listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
-const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done]);
+const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done,x.store||'']);
 function scheduleSync(){if(!listCode||!sbOn())return;clearTimeout(syncT);syncT=setTimeout(syncList,800)}
 async function syncList(){
   if(!listCode||!sbOn()||syncing||!navigator.onLine)return;syncing=true;
   try{
-    const ch=shop.filter(x=>snap[x.id]!==sig(x)).map(x=>({id:x.id,name:x.name,price:x.price??'',qty:x.qty||1,done:!!x.done,deleted:false}));
+    const ch=shop.filter(x=>snap[x.id]!==sig(x)).map(x=>({id:x.id,name:x.name,price:x.price??'',qty:x.qty||1,done:!!x.done,deleted:false,store:x.store}));
     const ids=new Set(shop.map(x=>x.id));
     for(const id of Object.keys(snap))if(!ids.has(id))ch.push({id,name:'-',price:'',qty:1,done:false,deleted:true});
     if(ch.length)await sbRpc('put_list',{p_list:listCode,p_items:ch});
@@ -862,7 +871,7 @@ async function syncList(){
     let changed=false;
     for(const r of rows){const i=shop.findIndex(x=>x.id===r.id);
       if(r.deleted){if(i>=0){shop.splice(i,1);changed=true}}
-      else{const v={name:r.name,price:r.price==null?null:Number(r.price),qty:r.qty,done:r.done};
+      else{const v={name:r.name,price:r.price==null?null:Number(r.price),qty:r.qty,done:r.done,store:r.store||(i>=0?shop[i].store:store)};
         if(i<0){shop.push({id:r.id,...v});changed=true}else if(sig(shop[i])!==sig(v)){Object.assign(shop[i],v);changed=true}}
       if(!listSince||r.updated_at>listSince)listSince=r.updated_at}
     if(myName&&Date.now()-lastBeat>60000){lastBeat=Date.now();sbRpc('join_list',{p_list:listCode,p_device:device,p_name:myName}).catch(()=>{})}
@@ -906,7 +915,7 @@ addEventListener('online',()=>{syncList();flushPrices()});
 function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history}}
 function openBackup(){
   const nk=Object.keys(known).length,nn=Object.keys(byName).length;
-  $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en la lista.`;
+  $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en tus listas.`;
   $('bakText').value=JSON.stringify(backupData());$('bakMsg').textContent='';$('bakMsg').className='calc';
   $('bakPasteText').hidden=true;$('bakPaste').textContent='Desde texto pegado';$('sBak').classList.add('on');
 }
@@ -928,7 +937,7 @@ function restore(txt){
   try{const d=JSON.parse(String(txt).trim());if(!d||d.app!=='mi-carrito')throw 0;
     const before=Object.keys(known).length;
     known=Object.assign({},d.known||{},known);byName=Object.assign({},d.byName||{},byName);
-    if(!shop.length&&Array.isArray(d.shop))shop=d.shop;
+    if(!shop.length&&Array.isArray(d.shop)){shop=d.shop;shop.forEach(x=>{if(!x.store)x.store=store})}
     if(!budget&&d.budget)budget=d.budget;
     if(!items.length&&Array.isArray(d.items))items=d.items;
     if(Array.isArray(d.stores))for(const x of d.stores)if(!stores.includes(x))stores.push(x);
