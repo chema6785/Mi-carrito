@@ -360,6 +360,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
       <p style="margin-top:12px">Comparte la lista con tu familia: todos pueden añadir, tachar y quitar, y lo ven los demás.</p>
       <button type="button" class="btn primary photo" id="shareNew">Crear lista compartida</button>
       <label for="iJoin">¿Te han pasado un código?</label>
+      <a class="btn photo wa" id="openNative" href="#" hidden style="margin:10px 0 4px">Abrir en la app Mi carrito</a>
       <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iJoin" autocomplete="off" autocapitalize="characters" placeholder="Ej. K7Q2M9XW4B" maxlength="12"><button type="button" class="btn ghost" id="shareJoin" style="min-height:52px;font-size:15px">Unirme</button></div>
     </div>
     <div id="shareOn" hidden>
@@ -1297,7 +1298,7 @@ async function syncList(){
   }catch(e){$('shareMsg').textContent='Sin conexión: se sincronizará cuando vuelva la cobertura.'}
   finally{syncing=false}
 }
-function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\nO en la app: Compartir → Unirme → código '+listCode}
+function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\n(Si tienes la app instalada, al abrir el enlace pulsa «Abrir en la app»)\nO en la app: Compartir → Unirme → código '+listCode}
 function ago(t){const m=Math.round((Date.now()-Date.parse(t))/60000);return m<2?'ahora':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'hace '+Math.round(m/1440)+' d'}
 async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){members=[]}
   $('members').innerHTML=members.length?members.map(m=>`<li><span>${esc(m.name)}${m.me?' (tú)':''}${m.owner?' · creó la lista':''}</span><small>${m.me?'':esc(ago(m.last_seen))}</small></li>`).join(''):'<li><span>Solo tú, de momento</span></li>';
@@ -1317,10 +1318,19 @@ $('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-
 $('shareCopy').onclick=async()=>{try{await navigator.clipboard.writeText(listCode);$('shareMsg').textContent='Código copiado'}catch(e){$('shareMsg').textContent='Mantén pulsado el código para copiarlo'}};
 $('shareLeave').onclick=()=>{if(listCode)sbRpc('leave_list',{p_list:listCode,p_device:device}).catch(()=>{});listCode='';members=[];put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
 setInterval(()=>{if(!document.hidden)syncList()},15000);
-function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m||!sbOn())return;
+function offerJoin(code){if(!code||!sbOn()||listCode===code)return;
+  closeAll&&closeAll();renderShare();$('iJoin').value=code;$('sShare').classList.add('on');$('shareMsg').textContent='';
+  const and=/android/i.test(navigator.userAgent)&&!isNative();
+  $('openNative').hidden=!and;
+  if(and)$('openNative').href='intent://unir/'+code+'#Intent;scheme=micarrito;package=es.micarrito.app;S.browser_fallback_url='+encodeURIComponent(location.origin+location.pathname+'#unir-'+code)+';end';
+  toast(and?'Si tienes la app instalada, pulsa «Abrir en la app». Si no, pulsa «Unirme».':'Pulsa «Unirme» para ver la lista compartida')}
+function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m)return;
   try{window.history.replaceState(null,'',location.pathname)}catch(e){}
-  if(listCode===m[1])return;
-  renderShare();$('iJoin').value=m[1];$('sShare').classList.add('on');$('shareMsg').textContent='';toast('Pulsa «Unirme» para ver la lista compartida')}
+  offerJoin(m[1])}
+/* la APK recibe los enlaces micarrito://unir/CODIGO */
+function handleAppUrl(u){const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
+try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
+  if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices()}});
 addEventListener('online',()=>{syncList();flushPrices()});
