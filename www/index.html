@@ -522,11 +522,26 @@ function parseLabel(lines){
   prices.sort((a,b)=>b.h-a.h);
   const main=prices[0]||null;
   const perKg=main&&main.kg?main:prices.find(p=>p.kg)||null;
-  const skip=/carrefour|precio|€|eur|iva|oferta|unidad|kg\b|^\W*$|ahorro|club|\d{5,}/i;
-  const names=lines.filter(l=>(!main||l.y<main.y+main.h)&&l!==main&&!skip.test(l.t)&&/[a-záéíóúñ]{3,}/i.test(l.t)&&l.conf>45).sort((a,b)=>a.y-b.y).slice(0,2);
-  let name=names.map(l=>l.t.replace(/[^\p{L}\d .,%/-]/gu,'').trim()).filter(Boolean).join(' ');
-  name=name.toLowerCase().replace(/^./,c=>c.toUpperCase()).slice(0,60);
-  return {name,price:main&&!main.kg?main.v:null,perKg:perKg?perKg.v:null,isKg:!!(main&&main.kg)};
+  const skip=/precio|€|eur\b|iva|oferta|unidad|kg\b|^\W*$|ahorro|club|\d{5,}|s\.?a\.|avda|av de|transici|alcobendas|envasado|variedad|calibre|categor|origen|consumir|lote|peso|importe/i;
+  const isBrandOnly=t=>/^\W*carrefour\W*$/i.test(t);
+  const cands=lines.filter(l=>(!main||l.y<main.y+main.h)&&l!==main&&!skip.test(l.t)&&!isBrandOnly(l.t)&&/[a-záéíóúñ]{3,}/i.test(l.t)&&l.conf>45).sort((a,b)=>a.y-b.y);
+  const upper=cands.filter(l=>{const L=l.t.replace(/[^\p{L}]/gu,'');return L.length>=6&&L.replace(/[^\p{Lu}]/gu,'').length/L.length>.7&&/\s/.test(l.t.trim())});
+  const names=upper.length?upper.slice(0,1):cands.slice(0,2);
+  let name=names.map(l=>l.t.replace(/[^\p{L}\d .,%/-]/gu,'').replace(/\s*[.,]\s*/g,' ').trim()).filter(Boolean).join(' ');
+  name=name.toLowerCase().replace(/\s+/g,' ').replace(/^./,c=>c.toUpperCase()).slice(0,60);
+  const g=lines.map(l=>l.t.match(/(\d)[,.](\d{3})\s?kg/i)).find(Boolean);
+  const grams=g?parseInt(g[1]+g[2],10):null;
+  return {name,grams,price:main&&!main.kg?main.v:null,perKg:perKg?perKg.v:null,isKg:!!(main&&main.kg)};
+}
+/* busca el producto equivalente en tu lista o en tus compras (ej. «Calabacin carrefour granel» → «Calabacin granel») */
+function matchKnownName(n){
+  const W=t=>norm(t).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/).filter(w=>w.length>1&&!/^(carrefour|crf|cdc|de|la|el)$/.test(w));
+  const nw=new Set(W(n));if(!nw.size)return null;
+  const score=t=>{const w=W(t);return w.length&&w.every(x=>nw.has(x))?w.length:0};
+  let best=null,bs=0;
+  for(const x of shop.filter(x=>!x.done)){const sc=score(x.name)+.5;if(sc>bs){bs=sc;best={name:x.name,listId:x.id}}}
+  if(!best)for(const r of CAT){const sc=score(r[0]);if(sc>bs){bs=sc;best={name:r[0]}}}
+  return best;
 }
 async function readLabel(file){
   const msg=$('ocrMsg');msg.hidden=false;msg.className='calc';msg.textContent='Leyendo la etiqueta… (la primera vez tarda unos segundos)';
@@ -540,8 +555,11 @@ async function readLabel(file){
     const lines=await ocrLines(w,imgToCanvas(img,1600));
     URL.revokeObjectURL(url);
     const r=parseLabel(lines),got=[];
-    if(r.name){$('iName').value=r.name;got.push('nombre')}
-    if(r.isKg&&r.perKg){setMode('kg');$('iKg').value=r.perKg.toFixed(2).replace('.',',');got.push('precio por kg');$('iGr').focus()}
+    const code0=$('iCode').value.trim(),scale=isScale(code0);
+    if(r.name){const m=matchKnownName(r.name);$('iName').value=m?m.name:r.name;if(m&&m.listId)listLink=m.listId;got.push('nombre')}
+    if(scale){setMode('unit');$('iPrice').value=scalePrice(code0).toFixed(2).replace('.',',');got.push('importe de la báscula'+(r.grams?' ('+fkg(r.grams)+')':''));
+      if(!r.name){const sc=known[scaleKey(code0)];if(sc){$('iName').value=sc.name;got.push('producto')}}}
+    else if(r.isKg&&r.perKg){setMode('kg');$('iKg').value=r.perKg.toFixed(2).replace('.',',');got.push('precio por kg');$('iGr').focus()}
     else if(r.price!=null){setMode('unit');$('iPrice').value=r.price.toFixed(2).replace('.',',');got.push('precio')}
     if($('iCode').value.trim())got.push('código');
     renderSug();calc();
