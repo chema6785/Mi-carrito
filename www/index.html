@@ -92,7 +92,9 @@ button{font-family:inherit}
 .shead b,.thead b{display:block;font:700 18px/1.2 Unbounded,sans-serif;letter-spacing:-.02em}
 .shead span{font-size:13px;color:var(--mute)}
 ul{list-style:none;margin:0;padding:0}
-.sl{display:flex;align-items:center;gap:12px;padding:6px 14px;border-top:1px solid var(--line)}
+.sl{position:relative;overflow:hidden;border-top:1px solid var(--line)}
+.slin{display:flex;align-items:center;gap:12px;padding:6px 14px;background:var(--paper);position:relative;touch-action:pan-y;transition:transform .22s ease}
+.swbg{position:absolute;inset:0;background:#d8381c;color:#fff;display:flex;align-items:center;justify-content:flex-end;padding-right:22px;font:700 15px Onest,sans-serif}
 .chk{flex:none;width:38px;height:38px;border-radius:12px;border:2px solid var(--line);background:transparent;color:transparent;font:800 17px Onest;cursor:pointer;transition:background .2s}
 .sl.done .chk{background:var(--lime);border-color:var(--lime);color:var(--plum)}
 .slname{flex:1;display:flex;justify-content:space-between;gap:8px;align-items:center;min-height:46px;background:none;border:0;color:var(--ink);font:500 15px Onest,sans-serif;text-align:left;cursor:pointer;padding:0}
@@ -447,7 +449,7 @@ function renderInfo(){
 let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
-let tT=null;function toast(t,undo){$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
+let tT=null,undoAction=null;function toast(t,undo,fn){undoAction=fn||null;$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
 function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync()}
 const r2=n=>Math.round(n*100)/100;
 const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
@@ -814,7 +816,7 @@ $('list').onclick=e=>{
   save();render();
 };
 function remove(i){lastRemoved={list:items.slice()};items=items.filter(x=>x!==i);save();render();toast('Quitado: '+(i.name||'artículo'),true)}
-$('undo').onclick=()=>{if(lastRemoved){items=lastRemoved.list;lastRemoved=null;save();render();toast('Recuperado')}};
+$('undo').onclick=()=>{if(undoAction){const f=undoAction;undoAction=null;f();return}if(lastRemoved){items=lastRemoved.list;lastRemoved=null;save();render();toast('Recuperado')}};
 
 function ask(o,cb){
   $('tAsk').textContent=o.title;$('pAsk').textContent=o.text||'';$('askYes').textContent=o.ok;
@@ -836,7 +838,8 @@ function renderShop(){
   const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editList').textContent=L.length?'Editar':'Preparar';
-  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span></span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`;
+  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><div class="swbg" aria-hidden="true">Quitar</div><div class="slin"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span></span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></div></li>`;
+  if(L.length&&!load('cart.swipehint',false)){put('cart.swipehint',true);setTimeout(()=>toast('Consejo: desliza un producto hacia la izquierda para quitarlo de la lista'),1200)}
   for(const x of L){if(!x.code){const c=codeFor(x.name);if(c)x.code=c}if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop())}
   const groups={};for(const x of L)(groups[aisleOf(x.name)]=groups[aisleOf(x.name)]||[]).push(x);
   const multi=Object.keys(groups).length>1;
@@ -963,7 +966,20 @@ $('moveList').onclick=e=>{const b=e.target.closest('button');if(b)doMove(b.datas
 $('fMove').onsubmit=e=>{e.preventDefault();doMove($('iMoveNew').value)};
 $('moveClose').onclick=()=>$('sMove').classList.remove('on');
 $('moveLeft').onclick=moveLeftover;
-$('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
+/* deslizar a la izquierda para quitar de la lista */
+let sw=null,swiped=false;
+function removeFromList(id){const i=shop.findIndex(x=>x.id===id);if(i<0)return;const x=shop.splice(i,1)[0];save();renderShop();
+  toast('Quitado de la lista: '+x.name,true,()=>{shop.splice(Math.min(i,shop.length),0,x);save();renderShop();toast('Recuperado')})}
+$('shopUl').addEventListener('pointerdown',e=>{const li=e.target.closest('li.sl');if(!li||e.button>0)return;sw={li,in:li.querySelector('.slin'),x:e.clientX,y:e.clientY,dx:0,on:false}});
+$('shopUl').addEventListener('pointermove',e=>{if(!sw)return;const dx=e.clientX-sw.x,dy=e.clientY-sw.y;
+  if(!sw.on){if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy)*1.4&&dx<0){sw.on=true;sw.in.style.transition='none';try{sw.li.setPointerCapture(e.pointerId)}catch(_){}}else if(Math.abs(dy)>12||dx>12){sw=null;return}}
+  if(sw.on){sw.dx=Math.min(0,dx);sw.in.style.transform=`translateX(${sw.dx}px)`}});
+function swEnd(){if(!sw)return;const s0=sw;sw=null;if(!s0.on)return;swiped=true;setTimeout(()=>swiped=false,350);
+  s0.in.style.transition='';const w=s0.li.offsetWidth;
+  if(s0.dx<-Math.min(110,w*.3)){s0.in.style.transform='translateX(-100%)';setTimeout(()=>removeFromList(s0.li.dataset.id),200)}
+  else s0.in.style.transform=''}
+$('shopUl').addEventListener('pointerup',swEnd);$('shopUl').addEventListener('pointercancel',swEnd);
+$('shopUl').onclick=e=>{if(swiped){swiped=false;return}const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
   if(b.dataset.a==='tog'){
     if(x.done){x.done=false;if(x.cartId&&items.some(i=>i.id===x.cartId)){items=items.filter(i=>i.id!==x.cartId);toast('Quitado del carrito: '+x.name)}x.cartId=null;save();render();return}
     const price=findPrice(x.name)??x.price;
