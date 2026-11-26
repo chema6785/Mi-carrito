@@ -465,7 +465,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 <script>
 {
 const $=id=>document.getElementById(id);
-try{const t=JSON.parse(localStorage.getItem('cart.tema')||'""');if(t)document.documentElement.dataset.tema=t}catch(e){}
+let tema0='';try{tema0=JSON.parse(localStorage.getItem('cart.tema')||'""');if(tema0)document.documentElement.dataset.tema=tema0}catch(e){}
 const eur=new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
@@ -1333,8 +1333,11 @@ $('mBackup').onclick=()=>{closeAll();openBackup()};
 $('mStore').onclick=()=>{closeAll();openStores()};
 const TEMAS=[['','Berenjena','#2a1238','#ff4d2e','#c6f04d'],['mercado','Mercado','#173d2c','#ff8a1e','#ffd23f'],['oceano','Océano','#0e2a4b','#14b8a6','#7ee8dc'],['mandarina','Mandarina','#8c3a0c','#2f9e44','#ffd166'],['grafito','Grafito','#24272b','#e9eaec','#9be564'],
   ['espana','España','linear-gradient(#aa151b 0 25%,#f1bf00 25% 75%,#aa151b 75%)','#aa151b','#f1bf00'],['ceuta','Ceuta','conic-gradient(from -22.5deg,#fff 0 45deg,#000 0 90deg,#fff 0 135deg,#000 0 180deg,#fff 0 225deg,#000 0 270deg,#fff 0 315deg,#000 0)','#111','#fff']];
+function hdrColor(t){return {mercado:'#173d2c',oceano:'#0e2a4b',mandarina:'#8c3a0c',grafito:'#24272b',espana:'#aa151b',ceuta:'#111111'}[t]||'#2a1238'}
+function applyBars(t){const c=hdrColor(t);const m=document.querySelector('meta[name=theme-color]');if(m)m.content=c;
+  try{const sb=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.StatusBar;if(sb){sb.setBackgroundColor({color:c}).catch(()=>{});sb.setStyle({style:'DARK'}).catch(()=>{})}}catch(e){}}
 function setTema(t){if(t)document.documentElement.dataset.tema=t;else delete document.documentElement.dataset.tema;put('cart.tema',t);
-  const m=document.querySelector('meta[name=theme-color]');if(m)m.content=(TEMAS.find(x=>x[0]===t)||TEMAS[0])[2].startsWith('#')?(TEMAS.find(x=>x[0]===t)||TEMAS[0])[2]:t==='espana'?'#aa151b':'#111111';
+  applyBars(t);
   renderTemas()}
 function renderTemas(){const cur=load('cart.tema','');
   $('temas').innerHTML=TEMAS.map(x=>`<button type="button" data-t="${x[0]}" class="${x[0]===cur?'on':''}"><div class="pv" style="background:${x[2]}"><i style="background:${x[3]};box-shadow:0 0 0 2px #0002"></i><i style="background:${x[4]};width:22%;margin-left:6px;box-shadow:0 0 0 2px #0002"></i></div><span>${x[1]}${x[0]===cur?' ✓':''}</span></button>`).join('')}
@@ -1377,7 +1380,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-render();renderShare();syncList();flushPrices();checkJoinLink();if(listCode&&sbOn())loadMembers();
+applyBars(tema0);render();renderShare();syncList();flushPrices();checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
   setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}
