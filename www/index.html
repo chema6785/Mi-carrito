@@ -44,6 +44,16 @@ button{font-family:inherit}
 .shopother{padding:6px 18px 12px;font-size:13px;color:var(--mute)}.shopother:empty{display:none}.shopother .linkbtn{font-size:13px;min-height:36px;padding:4px 6px}
 .mv{background:none;border:0;padding:4px 0;color:var(--ink);font:600 13px Onest,sans-serif;text-decoration:underline;text-underline-offset:2px;cursor:pointer;min-height:32px}
 #moveLeft:not([hidden]){display:block;margin-top:10px}
+.aisle{padding:12px 18px 4px;font-size:13px;font-weight:700;color:var(--mute);border-top:1px solid var(--line)}
+.due:empty,.cmp:empty{display:none}
+.due{margin:0 14px 8px;padding:10px 12px;border-radius:16px;background:color-mix(in srgb,var(--lime) 28%,var(--bg));font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.due .linkbtn{min-height:36px;padding:4px 2px}
+.cmp{padding:4px 18px 10px;font-size:13px;color:var(--mute)}.cmp div{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:3px 0}.cmp b{color:var(--ink)}.cmp .better{color:var(--ok);font-weight:700}.cmp .linkbtn{font-size:13px;min-height:32px;padding:2px}
+.mic{white-space:nowrap}
+.listening{position:fixed;inset:0;z-index:30;background:#12081add;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;color:#fff;text-align:center;padding:24px}
+.listening.on{display:flex}.listening .ring{width:120px;height:120px;border-radius:50%;background:var(--tomato);display:grid;place-items:center;animation:pulse 1.2s ease-in-out infinite}
+.listening .ring svg{width:54px;height:54px}.listening p{font:600 17px Onest,sans-serif;max-width:320px;margin:0}
+@keyframes pulse{50%{transform:scale(1.08);box-shadow:0 0 0 18px #ff4d2e33}}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -176,7 +186,9 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button></span></div>
+    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button><button class="linkbtn mic" id="micMain" aria-label="Añadir a la lista hablando">🎤 Dictar</button></span></div>
+    <div class="due" id="shopDue"></div>
+    <div class="cmp" id="shopCmp"></div>
     <ul id="shopUl"></ul>
     <div class="shopother" id="shopOther"></div>
   </section>
@@ -242,7 +254,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   <form class="sheet" id="fList">
     <h2 id="tList">Lista de la compra</h2>
     <p id="pList"></p>
-    <input id="lq" autocomplete="off" placeholder="Busca o escribe un producto">
+    <div class="coderow"><input id="lq" autocomplete="off" placeholder="Busca o escribe un producto"><button type="button" class="camb" id="micList" aria-label="Añadir hablando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></div>
+    <div id="ldue"></div>
     <div class="sugt" id="lsugt"></div><div class="sug" id="lsug"></div>
     <div id="lpub"></div>
     <div class="sugt">En tu lista</div><ul id="lcur"></ul>
@@ -326,6 +339,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="moveClose">Cancelar</button></div>
   </form>
 </div>
+
+<div class="listening" id="listening" role="dialog" aria-label="Escuchando"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><p id="listenMsg">Te escucho… di lo que quieres añadir, por ejemplo «dos leches, pan de molde y papel de aluminio»</p><button type="button" class="btn ghost" id="listenStop" style="background:#fff;color:#1c1424">Cancelar</button></div>
 
 <div class="scrim" id="sAsk" role="dialog" aria-modal="true" aria-labelledby="tAsk">
   <form class="sheet" id="fAsk">
@@ -754,11 +769,111 @@ function renderShop(){
   const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editList').textContent=L.length?'Editar':'Preparar';
-  $('shopUl').innerHTML=L.length?L.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
+  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`;
+  const groups={};for(const x of L)(groups[aisleOf(x.name)]=groups[aisleOf(x.name)]||[]).push(x);
+  const multi=Object.keys(groups).length>1;
+  $('shopUl').innerHTML=L.length?AISLE_ORDER.filter(a=>groups[a]).map(a=>(multi?`<li class="aisle">${esc(a)}</li>`:'')+groups[a].map(row).join('')).join('')
     :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
+  const due=dueItems();
+  $('shopDue').innerHTML=due.length?`<span>Te toca comprar: ${due.length===1?esc(due[0].name):due.length+' productos'}</span><button type="button" class="linkbtn" id="dueOpen">Ver</button>`:'';
+  renderCompare(L);
   const oth={};for(const x of shop)if(x.store!==store&&!x.done)oth[x.store]=(oth[x.store]||0)+1;
   const ok=Object.keys(oth);$('shopOther').innerHTML=(ok.length?'También tienes lista en: '+ok.map(k=>`<button type="button" class="linkbtn" data-s="${esc(k)}">${esc(k)} (${oth[k]})</button>`).join(' '):'')+(got&&left.length?`<div><button type="button" class="linkbtn" data-mv="1">Pasar lo que falta (${left.length}) a otra tienda</button></div>`:'');
 }
+/* ---- pasillos ---- */
+const AISLE_ORDER=['Fruta y verdura','Panadería','Carne','Pescado','Charcutería y quesos','Lácteos y huevos','Despensa','Bebidas','Congelados','Limpieza y hogar','Higiene y bebé','Otros'];
+const AISLE_RULES=[
+ ['Limpieza y hogar',/detergente|lejia|deterlejia|suavizante|lavavajillas|vinagre limp|gel wc|quitamanchas|vanish|ambientador|papel hig|papel cocina|bolsa|estropajo|guantes|limpia|fregasuelos|aluminio|albal|film|servilleta|crema calzado|crema blanco|toallitas color|insecticida|pila/],
+ ['Higiene y bebé',/champu|gel |gel$|desodorante|dentifric|pasta de dientes|cepillo|interdental|arcos dentales|toallitas|pañal|maquinilla|jabon|esponja|bastoncillos|aposito|esparadrapo|crema|laca|espuma|compresa|papel seda|pañuelos|licor polo|colonia/],
+ ['Carne',/jamoncitos/],
+ ['Despensa',/barrita|chocolate|choco /],
+ ['Congelados',/congelad|helado|croqueta|prefrita|pizza|patatas fritas 1/],
+ ['Charcutería y quesos',/jamon|jcocido|j cocido|longaniza|chorizo|salchich|queso|fiambre|salami|mortadela|lomo embuchado|estofado jam/],
+ ['Lácteos y huevos',/leche|yogur|griego|casei|activia|natillas|kefir|mantequilla|tulipan|nata\b|huevo|clara/],
+ ['Panadería',/\bpan\b|barra|panecillo|bijo|magdalena|bollo|croissant|tostada|tortita|chocoroll/],
+ ['Bebidas',/\bagua\b|cerveza|vino|refresco|cola\b|zumo|monster|bebida|almendra/],
+ ['Despensa',/arroz|pasta\b|macarron|espagueti|lenteja|garbanzo|alubia|harina|azucar|\bsal\b|aceite|vinagre|tomat\.|tomate frito|atun claro|conserva|cafe|capsula|infusion|miel|cacao|galleta|cereal|chocolate|pringles|patatas picantes|snack|caramelo|barrita|favourites|milka|esparragos/],
+ ['Fruta y verdura',/mandarina|naranja|manzana|\bpera\b|platano|banana|kaki|fresa|melon|sandia|uva|kiwi|piña|mango|aguacate|limon|chirimoya|frutas|calabac|calabaza|berenjena|tomate|pimiento|cebolla|\bajo|patata|zanahoria|lechuga|cogollo|alcachofa|perejil|salteado|verdura|ensalada|brocoli|champi|pepino|judia|espinaca|mezcla gourmet|granel/],
+ ['Carne',/pollo|pavo|añojo|ternera|cerdo|lomo|chuleta|burguer|hamburg|carne|morcillo|aguja|alas |alon|trasero|medallon|pechuga|jamoncitos/],
+ ['Pescado',/salmon|merluza|atun|langostino|gamba|bacalao|pescado|calamar|sardina|mejillon/],
+];
+const normA=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ñ/g,'ñ');
+function aisleOf(n){const t=' '+n.toLowerCase()+' ';for(const [a,r] of AISLE_RULES)if(r.test(t))return a;return 'Otros'}
+
+/* ---- precio de la lista en otras tiendas ---- */
+function priceAtItem(x,st){if(x.code&&known[x.code]){const k=known[x.code];if(k.prices&&k.prices[st])return k.prices[st].p;if(!k.prices&&st==='Carrefour'&&k.price!=null)return k.price}return priceAt(x.name,st)}
+function renderCompare(L){
+  const others=stores.filter(x=>x!==store),out=[];
+  if(L.length>=2)for(const st of others){let a=0,b=0,n=0;
+    for(const x of L){const p1=priceAtItem(x,store)??x.price,p2=priceAtItem(x,st);if(p1==null||p2==null)continue;a+=p1*(x.qty||1);b+=p2*(x.qty||1);n++}
+    if(n>=2)out.push({st,diff:r2(b-a),n,b:r2(b)})}
+  $('shopCmp').innerHTML=out.length?out.map(o=>`<div><span>En <b>${esc(o.st)}</b> ${o.diff<-0.009?`<span class="better">ahorrarías ${eur.format(-o.diff)}</span>`:o.diff>0.009?`pagarías ${eur.format(o.diff)} más`:'cuesta lo mismo'} <small>(${o.n} de ${L.length} con precio en las dos)</small></span>${o.diff<-0.009?`<button type="button" class="linkbtn" data-cmp="${esc(o.st)}">Pasar ahí</button>`:''}</div>`).join(''):'';
+}
+$('shopCmp').onclick=e=>{const b=e.target.closest('[data-cmp]');if(!b)return;const L=cur().filter(x=>!x.done);if(!L.length)return;moveIds=L.map(x=>x.id);doMove(b.dataset.cmp)};
+/* ---- te toca comprar: cada cuánto compras cada cosa ---- */
+function dueItems(){
+  const now=Date.now(),D=864e5,m={};
+  const add=(n,t)=>{const k=norm(n);if(!k||k==='articulo')return;(m[k]=m[k]||{name:n,ts:[]}).ts.push(t)};
+  for(const h of history)for(const it of h.items||[])add(it[0],h.t);
+  const res=[],inList=new Set(cur().map(x=>norm(x.name)));
+  const keys=new Set([...Object.keys(m),...CAT0.map(r=>norm(r[0]))]);
+  for(const k of keys){if(inList.has(k))continue;
+    const c=CAT0.find(r=>norm(r[0])===k),hm=m[k];let ts=hm?[...new Set(hm.ts)].sort((a,b)=>a-b):[];
+    let interval=null,last=ts.length?ts[ts.length-1]:null,times=ts.length;
+    if(ts.length>=2)interval=(ts[ts.length-1]-ts[0])/(ts.length-1);
+    if(c&&c[3]>=2){const [dd,mm]=String(c[4]).split('/').map(Number);let cl=new Date(2026,mm-1,dd).getTime();if(cl>now)cl-=365*D;
+      if(interval==null)interval=Math.max(3*D,120*D/c[3]);last=Math.max(last||0,cl);times+=c[3]}
+    if(interval==null||times<2)continue;
+    const since=now-last,ratio=since/interval;
+    if(ratio>=.9&&ratio<=2.5)res.push({name:hm?hm.name:c[0],ratio,interval,why:'Sueles comprarlo cada '+Math.max(1,Math.round(interval/D))+' días · la última vez hace '+Math.round(since/D),price:findPrice(hm?hm.name:c[0])})}
+  return res.sort((a,b)=>a.interval-b.interval).slice(0,8);
+}
+function addToList(name,qty){const ex=cur().find(x=>norm(x.name)===norm(name));
+  if(ex)ex.qty=(ex.qty||1)+(qty||1);else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,price:findPrice(name),qty:qty||1,done:false,store})}
+$('shopDue').onclick=e=>{if(e.target.closest('#dueOpen'))$('editList').click()};
+$('ldue').onclick=e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.id==='dueAll'){for(const d of dueItems())addToList(d.name,1)}else addToList(b.dataset.n,1);
+  save();renderListEditor();renderShop()};
+/* ---- añadir por voz ---- */
+const NUM={un:1,una:1,uno:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,doce:12,docena:12};
+function matchSpoken(p){
+  const sw=new Set(['de','del','la','el','los','las','un','una','unos','unas','y','con','para','paquete','paquetes','bote','botes','kilo','kilos','bolsa']);
+  const sing=w=>w.length>4&&w.endsWith('es')&&!w.endsWith('ces')?w.slice(0,-2):w.length>3&&w.endsWith('s')?w.slice(0,-1):w;
+  const ws=norm(p).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/).filter(w=>w&&!sw.has(w)).map(sing);
+  if(!ws.length)return null;
+  const pools=[...cur().map(x=>x.name),...Object.values(known).map(k=>k&&k.name).filter(Boolean),...CAT0.map(r=>r[0])];
+  return pools.find(n=>{const nw=norm(n).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/);return ws.every(w=>nw.some(x=>x.startsWith(w)||sing(x)===w))})||null;
+}
+function parseSpoken(t){
+  const parts=String(t).toLowerCase().replace(/\s+(y|e|también|tambien|luego|además|ademas)\s+/g,',').split(/[,;.]+/).map(x=>x.trim()).filter(Boolean);
+  const out=[];
+  for(let p of parts){let q=1;const m=p.match(/^(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|doce|media docena|docena)\b\s*(de\s+)?/);
+    if(m){q=/^\d+$/.test(m[1])?parseInt(m[1],10):m[1]==='media docena'?6:NUM[m[1]]||1;p=p.slice(m[0].length).trim()}
+    if(!p)continue;const hit=matchSpoken(p);if(m&&/docena/.test(m[1])&&hit&&/\d+\s?u\b|x\s?\d+|\d+\s?uds/i.test(hit))q=1;out.push({name:hit||p.replace(/^./,c=>c.toUpperCase()),qty:Math.min(q,99),known:!!hit})}
+  return out}
+function addSpoken(text){const it=parseSpoken(text);if(!it.length){toast('No te he entendido, prueba otra vez');return}
+  for(const x of it)addToList(x.name,x.qty);save();renderShop();if($('sList').classList.contains('on'))renderListEditor();
+  toast('Añadido a la lista: '+it.map(x=>(x.qty>1?x.qty+' × ':'')+x.name).join(', '))}
+let recog=null;
+async function listen(){
+  const cap=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.SpeechRecognition;
+  if(cap&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){
+    try{const a=await cap.available();if(!a.available){toast('Este móvil no tiene reconocimiento de voz');return}
+      const pm=await cap.requestPermissions();if(pm&&pm.speechRecognition&&pm.speechRecognition!=='granted'){toast('Da permiso al micrófono para dictar');return}
+      const r=await cap.start({language:'es-ES',maxResults:1,prompt:'Di lo que quieres añadir',partialResults:false,popup:true});
+      if(r&&r.matches&&r.matches[0])addSpoken(r.matches[0])}catch(e){toast('No he podido escucharte')}
+    return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast('Tu navegador no permite dictar: usa Chrome');return}
+  recog=new SR();recog.lang='es-ES';recog.interimResults=true;recog.maxAlternatives=1;
+  let final='';$('listenMsg').textContent='Te escucho… di lo que quieres añadir, por ejemplo «dos leches, pan de molde y papel de aluminio»';$('listening').classList.add('on');
+  recog.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;$('listenMsg').textContent='«'+t+'»';if(e.results[e.results.length-1].isFinal)final=t};
+  recog.onerror=e=>{$('listening').classList.remove('on');toast(e.error==='not-allowed'?'Da permiso al micrófono para dictar':e.error==='network'?'Dictar necesita conexión a internet':'No te he entendido, prueba otra vez')};
+  recog.onend=()=>{$('listening').classList.remove('on');recog=null;if(final)addSpoken(final)};
+  try{recog.start()}catch(e){$('listening').classList.remove('on')}
+}
+$('micMain').onclick=listen;$('micList').onclick=listen;
+$('listenStop').onclick=()=>{if(recog){recog.onend=null;recog.abort();recog=null}$('listening').classList.remove('on')};
 $('shopOther').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.mv){moveLeftover();return}useStore(b.dataset.s)};
 let moveIds=[];
 function priceAt(n,st){const o=byName[norm(n)];if(o&&o.prices&&o.prices[st])return o.prices[st].p;if(st==='Carrefour'){const c=CAT0.find(r=>norm(r[0])===norm(n));if(c)return c[1]}return null}
@@ -795,6 +910,8 @@ function renderListEditor(){
   let res=(w.length?CAT.filter(r=>w.every(t=>norm(r[0]).includes(t))):CAT.filter(r=>!inList.has(norm(r[0])))).slice(0,w.length?6:8).map(r=>[r[0],r[1]]);
   if(w.length&&!CAT.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null]);
   $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
+  const due=w.length?[]:dueItems();
+  $('ldue').innerHTML=due.length?'<div class="sugt">Te toca comprar</div><div class="sug">'+due.map(d=>`<button type="button" data-n="${esc(d.name)}" class="fromlist"><span>${esc(d.name)}<small>${esc(d.why)}</small></span><b>${d.price!=null?eur.format(d.price):''}</b></button>`).join('')+'</div>'+(due.length>1?'<button type="button" class="linkbtn" id="dueAll">Añadir las '+due.length+' a la lista</button>':''):'';
   $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[1]==null?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
   $('lcur').innerHTML=L.length?L.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'} · <button type="button" class="mv" data-a="mv">Pasar a otra tienda</button></small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
   const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=L.filter(x=>x.price==null).length;
