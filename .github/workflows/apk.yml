@@ -20,6 +20,8 @@ jobs:
       - name: Preparar proyecto Android
         run: |
           npm install
+          echo "{\"t\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"sha\":\"${GITHUB_SHA}\"}" > www/build.json
+          cat www/build.json
           npx cap add android
           sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />#' android/app/src/main/AndroidManifest.xml
           grep -q CAMERA android/app/src/main/AndroidManifest.xml

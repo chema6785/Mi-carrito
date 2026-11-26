@@ -445,12 +445,21 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 <div class="scrim" id="sAbout" role="dialog" aria-modal="true" aria-labelledby="tAbout">
   <form class="sheet" id="fAbout">
     <div class="about"><img class="logo" src="icon-192.png" alt=""><h3 id="tAbout">Mi carrito</h3><p>Creada por <b>chema6785</b></p>
+    <p id="verTxt" style="color:var(--mute);font-size:13px;margin-top:8px"></p><button type="button" class="linkbtn" id="checkUpd" hidden>Buscar actualizaciones</button>
     <p style="color:var(--mute);font-size:14px;margin-top:12px">Escanea, suma y controla lo que gastas en el súper.<br>Datos de productos: <a href="https://openfoodfacts.org" rel="noopener">Open Food Facts</a> y Open Prices (licencia ODbL).</p></div>
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="aboutClose">Cerrar</button></div>
   </form>
 </div>
 
 <div class="lightbox" id="lightbox" role="dialog" aria-label="Foto del producto"><img id="lbImg" alt=""></div>
+
+<div class="scrim" id="sUpd" role="dialog" aria-modal="true" aria-labelledby="tUpd">
+  <form class="sheet" id="fUpd">
+    <h2 id="tUpd">Hay una versión nueva</h2>
+    <p id="pUpd">Se ha publicado una versión nueva de Mi carrito. Descárgala e instálala encima: no perderás tus datos.</p>
+    <div class="sbtns"><button type="button" class="btn ghost" id="updLater">Más tarde</button><button type="button" class="btn primary" id="updGo">Descargar</button></div>
+  </form>
+</div>
 
 <div class="scrim" id="sAsk" role="dialog" aria-modal="true" aria-labelledby="tAsk">
   <form class="sheet" id="fAsk">
@@ -1344,6 +1353,29 @@ function renderTemas(){const cur=load('cart.tema','');
 $('temas').onclick=e=>{const b=e.target.closest('button');if(b)setTema(b.dataset.t)};
 $('mTheme').onclick=()=>{closeAll();renderTemas();$('sTheme').classList.add('on')};
 $('themeClose').onclick=closeAll;
+/* ---- avisar de versión nueva de la APK ---- */
+const APK_URL='https://github.com/chema6785/Mi-carrito/releases/download/apk/mi-carrito.apk';
+const isNative=()=>!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+let myBuild=null;
+async function checkUpdate(manual){
+  if(!isNative())return;
+  try{if(!myBuild){const r=await fetch('build.json',{cache:'no-store'});myBuild=r.ok?await r.json():null}
+    if(myBuild)$('verTxt').textContent='Versión del '+new Date(myBuild.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    if(!manual&&Date.now()-load('cart.updcheck',0)<6*36e5)return;
+    if(!navigator.onLine){if(manual)toast('Sin conexión para buscar actualizaciones');return}
+    put('cart.updcheck',Date.now());
+    const j=await getJSON('https://api.github.com/repos/chema6785/Mi-carrito/releases/tags/apk');
+    const a=j&&j.assets&&j.assets[0];if(!a||!myBuild){if(manual)toast('No he podido comprobarlo ahora');return}
+    const remote=Date.parse(a.updated_at),mine=Date.parse(myBuild.t);
+    if(remote>mine+10*60000){if(!manual&&load('cart.updskip','')===a.updated_at)return;
+      $('pUpd').textContent='Se publicó el '+new Date(remote).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'. Descárgala e instálala encima: no perderás tus datos.';$('updGo').dataset.v=a.updated_at;$('sUpd').classList.add('on')}
+    else if(manual)toast('Ya tienes la última versión')}catch(e){if(manual)toast('No he podido comprobarlo ahora')}
+}
+$('updLater').onclick=()=>{put('cart.updskip',$('updGo').dataset.v||'');$('sUpd').classList.remove('on')};
+$('updGo').onclick=()=>{$('sUpd').classList.remove('on');toast('Descargando… cuando termine, ábrela e instálala');location.href=APK_URL};
+$('fUpd').onsubmit=e=>e.preventDefault();
+$('checkUpd').onclick=()=>checkUpdate(true);
+if(isNative()){$('checkUpd').hidden=false;setTimeout(()=>checkUpdate(false),4000)}else $('verTxt').textContent='Versión web: se actualiza sola';
 $('mAbout').onclick=()=>{closeAll();$('sAbout').classList.add('on')};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
 if(!load('cart.helpseen',false)){put('cart.helpseen',true);setTimeout(()=>{if(!document.querySelector('.scrim.on'))$('sHelp').classList.add('on')},900)}
