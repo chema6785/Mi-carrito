@@ -395,6 +395,8 @@ function priceFor(rec){
 function otherPrices(rec){const ps=rec&&rec.prices;if(!ps)return store!=='Carrefour'&&rec&&rec.price!=null?[['Carrefour',rec.price]]:[];return Object.entries(ps).filter(([k])=>k!==store).map(([k,v])=>[k,v.p])}
 const TH={};
 let offc=load('cart.offc',{});
+/* limpia fallos guardados por error con mala cobertura, para volver a intentarlo */
+if(!load('cart.offfix1',false)){for(const k in offc)if(!offc[k].img&&!offc[k].ns&&!offc[k].nova)delete offc[k];put('cart.offc',offc);put('cart.offfix1',true)}
 function setPrice(rec,p){rec.hist=(rec.hist||[]).concat([[Date.now(),p,store]]).slice(-24);if(!rec.prices){rec.prices={};if(rec.price!=null&&store!=='Carrefour')rec.prices.Carrefour={p:rec.price,d:rec.date,t:0}}rec.prices[store]={p,d:ddmm(),t:Date.now()};rec.price=p;rec.date=ddmm();return rec}
 function compareNote(rec){const here=priceFor(rec);if(!here)return '';const o=otherPrices(rec).filter(x=>here.here?x[1]<here.p-0.004:true).sort((a,b)=>a[1]-b[1])[0];
   if(!here.here)return 'Precio de '+here.at+(here.d?' ('+here.d+')':'')+': compruébalo aquí.';
@@ -425,7 +427,7 @@ function offSave(code,p){if(!code||!p)return;offc[code]={img:p.image_front_small
 const offQ=new Set();let offBusy=0;
 function offFetch(code,cb){if(!code||!/^\d{8,14}$/.test(code)||isScale(code)||offc[code]&&Date.now()-offc[code].t<30*864e5||offQ.has(code)||!navigator.onLine)return;
   offQ.add(code);const go=async()=>{offBusy++;try{const j=await getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=image_front_small_url,nutriscore_grade,nova_group,allergens_tags');
-    if(j&&j.status===1)offSave(code,j.product);else offc[code]={img:'',t:Date.now()},put('cart.offc',offc);cb&&cb()}finally{offBusy--;offQ.delete(code)}};
+    if(j&&j.status===1)offSave(code,j.product);else if(j&&j.status===0){offc[code]={img:'',t:Date.now()};put('cart.offc',offc)}cb&&cb()}finally{offBusy--;offQ.delete(code)}};
   setTimeout(go,offBusy*400)}
 function healthHTML(o){if(!o)return '';const b=[];
   if(/^[a-e]$/.test(o.ns||''))b.push(`<span class="ns ${o.ns}" title="Nutri-Score">${o.ns.toUpperCase()}</span>`);
@@ -796,7 +798,7 @@ $('fItem').onsubmit=e=>{
     if(same){same.qty+=qty;same.offer=rec.offer||same.offer;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,...rec,qty})}
     msg='Añadido: '+(name||'artículo')+' · '+eur.format(rec.mode==='kg'?rec.price:rec.price*qty);
     const li=listLink?shop.find(x=>x.id===listLink):cur().find(x=>!x.done&&(code&&x.code===code||name&&norm(x.name)===norm(name)));
-    if(li){li.done=true;li.cartId=newId;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
+    if(li){li.done=true;li.cartId=newId;if(code&&!isScale(code)&&/^\d{8,14}$/.test(code))li.code=code;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
   }
   toast(msg);save();render();closeItem();
 };
@@ -827,6 +829,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){stopScan();closeIte
 
 /* ---- lista de la compra ---- */
 const findPrice=n=>{const k=norm(n),o=priceFor(byName[k]);if(o&&(o.here||!CAT.some(r=>norm(r[0])===k)))return o.p;const c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
+function codeFor(n){const k=norm(n||'');for(const c in known)if(/^\d{8,14}$/.test(c)&&known[c]&&norm(known[c].name||'')===k)return c;return null}
 function renderShop(){
   const L=cur();$('shopTitle').textContent='Lista para '+store;
   const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=L.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
@@ -834,7 +837,7 @@ function renderShop(){
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editList').textContent=L.length?'Editar':'Preparar';
   const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span></span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`;
-  for(const x of L)if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop());
+  for(const x of L){if(!x.code){const c=codeFor(x.name);if(c)x.code=c}if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop())}
   const groups={};for(const x of L)(groups[aisleOf(x.name)]=groups[aisleOf(x.name)]||[]).push(x);
   const multi=Object.keys(groups).length>1;
   $('shopUl').innerHTML=L.length?AISLE_ORDER.filter(a=>groups[a]).map(a=>(multi?`<li class="aisle">${esc(a)}</li>`:'')+groups[a].map(row).join('')).join('')
