@@ -38,6 +38,8 @@ button{font-family:inherit}
 .storelist{display:flex;flex-direction:column;gap:6px;margin-top:6px}.storelist button{min-height:52px;border-radius:16px;border:2px solid transparent;background:var(--bg);color:var(--ink);font:600 16px Onest,sans-serif;text-align:left;padding:0 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}.storelist button.on{border-color:var(--tomato)}
 .sharecode{font:800 30px Unbounded,sans-serif;letter-spacing:.08em;text-align:center;padding:18px;border-radius:18px;background:var(--bg);margin:6px 0 12px;user-select:all}
 .wa{background:#25d366;color:#08331a;text-decoration:none;box-shadow:none}
+.members li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.members small{color:var(--mute);font-size:13px;white-space:nowrap}
+#sShare .linkbtn:not([hidden]){display:block;text-align:left}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -283,8 +285,10 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 <div class="scrim" id="sShare" role="dialog" aria-modal="true" aria-labelledby="tShare">
   <form class="sheet" id="fShare">
     <h2 id="tShare">Lista compartida</h2>
+    <label for="iMe" style="margin-top:4px">Tu nombre (lo verán los demás)</label>
+    <input id="iMe" autocomplete="given-name" maxlength="30" placeholder="Ej. Chema">
     <div id="shareOff">
-      <p>Comparte la lista con tu familia: lo que uno añade o tacha lo ven los demás.</p>
+      <p style="margin-top:12px">Comparte la lista con tu familia: todos pueden añadir, tachar y quitar, y lo ven los demás.</p>
       <button type="button" class="btn primary photo" id="shareNew">Crear lista compartida</button>
       <label for="iJoin">¿Te han pasado un código?</label>
       <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iJoin" autocomplete="off" autocapitalize="characters" placeholder="Ej. K7Q2M9XW4B" maxlength="12"><button type="button" class="btn ghost" id="shareJoin" style="min-height:52px;font-size:15px">Unirme</button></div>
@@ -295,7 +299,10 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
       <a class="btn photo wa" id="shareWa" href="#" rel="noopener">Enviar por WhatsApp</a>
       <button type="button" class="btn ghost photo" id="shareCopy" style="margin-top:8px">Copiar código</button>
       <div class="calc" id="shareMsg"></div>
-      <button type="button" class="linkbtn" id="shareLeave">Dejar de compartir en este móvil</button>
+      <div class="sugt">Personas en esta lista</div>
+      <ul class="members" id="members"></ul>
+      <button type="button" class="linkbtn" id="shareReset" hidden>Dejar de compartir con todos (crear un código nuevo)</button>
+      <button type="button" class="linkbtn" id="shareLeave">Salir de esta lista en este móvil</button>
     </div>
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="shareClose">Cerrar</button></div>
   </form>
@@ -809,7 +816,7 @@ function queuePrice(a){if(!sbOn())return;outbox.push(a);if(outbox.length>300)out
 async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)return;flushing=true;
   try{while(outbox.length){await sbRpc('add_price',outbox[0]);outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
 /* lista compartida: se suben los cambios respecto a la última sincronización y se bajan los de los demás */
-let listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
+let myName=load('cart.myname',''),lastBeat=0,members=[],listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
 const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done]);
 function scheduleSync(){if(!listCode||!sbOn())return;clearTimeout(syncT);syncT=setTimeout(syncList,800)}
 async function syncList(){
@@ -826,6 +833,8 @@ async function syncList(){
       else{const v={name:r.name,price:r.price==null?null:Number(r.price),qty:r.qty,done:r.done};
         if(i<0){shop.push({id:r.id,...v});changed=true}else if(sig(shop[i])!==sig(v)){Object.assign(shop[i],v);changed=true}}
       if(!listSince||r.updated_at>listSince)listSince=r.updated_at}
+    if(myName&&Date.now()-lastBeat>60000){lastBeat=Date.now();sbRpc('join_list',{p_list:listCode,p_device:device,p_name:myName}).catch(()=>{})}
+    if($('sShare').classList.contains('on'))loadMembers();
     snap={};for(const x of shop)snap[x.id]=sig(x);
     put('cart.listsnap',snap);put('cart.listsince',listSince);put('cart.shop',shop);
     if(changed){renderShop();if($('sList').classList.contains('on'))renderListEditor()}
@@ -834,15 +843,24 @@ async function syncList(){
   finally{syncing=false}
 }
 function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\nO en la app: Compartir → Unirme → código '+listCode}
-function renderShare(){if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
-function linkList(code){listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList()}
-$('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');syncList()};
+function ago(t){const m=Math.round((Date.now()-Date.parse(t))/60000);return m<2?'ahora':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'hace '+Math.round(m/1440)+' d'}
+async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){members=[]}
+  $('members').innerHTML=members.length?members.map(m=>`<li><span>${esc(m.name)}${m.me?' (tú)':''}${m.owner?' · creó la lista':''}</span><small>${m.me?'':esc(ago(m.last_seen))}</small></li>`).join(''):'<li><span>Solo tú, de momento</span></li>';
+  const me=members.find(m=>m.me);$('shareReset').hidden=!(me&&me.owner&&members.length>1);
+  const n=members.length;$('shareList').textContent=listCode?(n>1?'Compartida ('+n+')':'Compartida'):'Compartir'}
+function needName(){const v=$('iMe').value.trim();if(!v){toast('Pon tu nombre para que los demás sepan quién eres');$('iMe').focus();return false}myName=v;put('cart.myname',v);return true}
+function renderShare(){$('iMe').value=myName;if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
+function linkList(code){if(!needName())return false;lastBeat=0;listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList().then(loadMembers);return true}
+$('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');if(listCode){syncList();loadMembers()}};
 $('shareClose').onclick=()=>$('sShare').classList.remove('on');
 $('fShare').onsubmit=e=>e.preventDefault();
-$('shareNew').onclick=()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',b=crypto.getRandomValues(new Uint8Array(10));linkList([...b].map(x=>A[x%A.length]).join(''))};
-$('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-Z0-9]/g,'');if(v.length!==10){toast('El código tiene 10 letras y números');return}linkList(v);toast('Unido a la lista compartida')};
+const newCode=()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',b=crypto.getRandomValues(new Uint8Array(10));return [...b].map(x=>A[x%A.length]).join('')};
+$('shareNew').onclick=()=>linkList(newCode());
+$('shareReset').onclick=()=>ask({title:'¿Dejar de compartir con todos?',text:'Tu lista pasa a un código nuevo y los demás dejan de ver tus cambios. Ellos se quedan con su copia.',ok:'Crear código nuevo'},()=>{const old=listCode;sbRpc('leave_list',{p_list:old,p_device:device}).catch(()=>{});if(linkList(newCode()))toast('Código nuevo creado: ya no compartes con nadie')});
+$('iMe').addEventListener('change',()=>{const v=$('iMe').value.trim();if(v){myName=v;put('cart.myname',v);lastBeat=0;syncList()}});
+$('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-Z0-9]/g,'');if(v.length!==10){toast('El código tiene 10 letras y números');return}if(linkList(v))toast('Unido a la lista compartida')};
 $('shareCopy').onclick=async()=>{try{await navigator.clipboard.writeText(listCode);$('shareMsg').textContent='Código copiado'}catch(e){$('shareMsg').textContent='Mantén pulsado el código para copiarlo'}};
-$('shareLeave').onclick=()=>{listCode='';put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
+$('shareLeave').onclick=()=>{if(listCode)sbRpc('leave_list',{p_list:listCode,p_device:device}).catch(()=>{});listCode='';members=[];put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
 setInterval(()=>{if(!document.hidden)syncList()},15000);
 function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m||!sbOn())return;
   try{window.history.replaceState(null,'',location.pathname)}catch(e){}
@@ -894,7 +912,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-render();renderShare();syncList();flushPrices();checkJoinLink();
+render();renderShare();syncList();flushPrices();checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
