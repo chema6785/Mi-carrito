@@ -37,6 +37,7 @@ button{font-family:inherit}
 #histUl>li{border-top:1px solid var(--line)}#histUl summary{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 18px;cursor:pointer;list-style:none;min-height:48px}#histUl summary::-webkit-details-marker{display:none}#histUl summary small{display:block;color:var(--mute);font-size:13px}.hdet{padding:0 18px 12px;font-size:14px;color:var(--mute)}.hdet div{display:flex;justify-content:space-between;gap:10px}
 .storelist{display:flex;flex-direction:column;gap:6px;margin-top:6px}.storelist button{min-height:52px;border-radius:16px;border:2px solid transparent;background:var(--bg);color:var(--ink);font:600 16px Onest,sans-serif;text-align:left;padding:0 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}.storelist button.on{border-color:var(--tomato)}
 .sharecode{font:800 30px Unbounded,sans-serif;letter-spacing:.08em;text-align:center;padding:18px;border-radius:18px;background:var(--bg);margin:6px 0 12px;user-select:all}
+.wa{background:#25d366;color:#08331a;text-decoration:none;box-shadow:none}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -291,7 +292,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <div id="shareOn" hidden>
       <p>Pasa este código a quien quieras que vea y edite la lista:</p>
       <div class="sharecode" id="shareCode"></div>
-      <button type="button" class="btn primary photo" id="shareCopy">Copiar código</button>
+      <a class="btn photo wa" id="shareWa" href="#" rel="noopener">Enviar por WhatsApp</a>
+      <button type="button" class="btn ghost photo" id="shareCopy" style="margin-top:8px">Copiar código</button>
       <div class="calc" id="shareMsg"></div>
       <button type="button" class="linkbtn" id="shareLeave">Dejar de compartir en este móvil</button>
     </div>
@@ -831,7 +833,8 @@ async function syncList(){
   }catch(e){$('shareMsg').textContent='Sin conexión: se sincronizará cuando vuelva la cobertura.'}
   finally{syncing=false}
 }
-function renderShare(){const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
+function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\nO en la app: Compartir → Unirme → código '+listCode}
+function renderShare(){if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
 function linkList(code){listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList()}
 $('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');syncList()};
 $('shareClose').onclick=()=>$('sShare').classList.remove('on');
@@ -841,6 +844,11 @@ $('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-
 $('shareCopy').onclick=async()=>{try{await navigator.clipboard.writeText(listCode);$('shareMsg').textContent='Código copiado'}catch(e){$('shareMsg').textContent='Mantén pulsado el código para copiarlo'}};
 $('shareLeave').onclick=()=>{listCode='';put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
 setInterval(()=>{if(!document.hidden)syncList()},15000);
+function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m||!sbOn())return;
+  try{window.history.replaceState(null,'',location.pathname)}catch(e){}
+  if(listCode===m[1])return;
+  renderShare();$('iJoin').value=m[1];$('sShare').classList.add('on');$('shareMsg').textContent='';toast('Pulsa «Unirme» para ver la lista compartida')}
+addEventListener('hashchange',checkJoinLink);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices()}});
 addEventListener('online',()=>{syncList();flushPrices()});
 
@@ -886,7 +894,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-render();renderShare();syncList();flushPrices();
+render();renderShare();syncList();flushPrices();checkJoinLink();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
 </script>
