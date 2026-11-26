@@ -570,7 +570,7 @@ $('fItem').onsubmit=e=>{
     if(same){same.qty+=qty;same.offer=rec.offer||same.offer;newId=same.id}else{newId=Date.now().toString(36);items.push({id:newId,...rec,qty})}
     msg='Añadido: '+(name||'artículo')+' · '+eur.format(rec.mode==='kg'?rec.price:rec.price*qty);
     const li=listLink?shop.find(x=>x.id===listLink):shop.find(x=>!x.done&&name&&norm(x.name)===norm(name));
-    if(li){li.done=true;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
+    if(li){li.done=true;li.cartId=newId;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
   }
   toast(msg);save();render();closeItem();
 };
@@ -605,11 +605,17 @@ function renderShop(){
   const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=shop.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
   $('shopSum').textContent=shop.length?(left.length?`${shop.length-left.length} de ${shop.length} · faltan ~${eur.format(leftEst)}`:'¡Lo tienes todo!')+` · total ~${eur.format(est)}`:'Vacía';
   $('editList').textContent=shop.length?'Editar':'Preparar';
-  $('shopUl').innerHTML=shop.length?shop.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Desmarcar':'Marcar como cogido'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
+  $('shopUl').innerHTML=shop.length?shop.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
     :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
 }
 $('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
-  if(b.dataset.a==='tog'){x.done=!x.done;save();renderShop();return}
+  if(b.dataset.a==='tog'){
+    if(x.done){x.done=false;if(x.cartId&&items.some(i=>i.id===x.cartId)){items=items.filter(i=>i.id!==x.cartId);toast('Quitado del carrito: '+x.name)}x.cartId=null;save();render();return}
+    const price=findPrice(x.name)??x.price;
+    if(price==null){openItem({name:x.name,qty:x.qty,listId:x.id,msg:'No tengo su precio: escanéalo o ponlo de la etiqueta.',focus:'iPrice'});return}
+    newId=Date.now().toString(36);items.push({id:newId,code:'',name:x.name,price,qty:x.qty||1,mode:'unit',offer:''});
+    x.done=true;x.cartId=newId;x.price=price;
+    toast('Al carrito: '+x.name+' · '+eur.format(price*(x.qty||1))+'. Toca ✎ en el carrito si el precio ha cambiado');save();render();return}
   if(!x.done)openItem({name:x.name,price:x.price,qty:x.qty,listId:x.id,msg:'Escanéalo o confirma el precio de la etiqueta.',focus:'iPrice'})};
 function renderListEditor(){
   const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(shop.map(x=>norm(x.name)));
