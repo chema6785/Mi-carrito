@@ -153,6 +153,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 .scanbot{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px calc(20px + env(safe-area-inset-bottom))}
 .scanbot .btn{background:#ffffffeb;color:#1c1424;min-height:54px;font:600 15px Onest,sans-serif}
 .scanbot .btn[hidden]{display:none}
+.scanbot{display:flex!important;flex-wrap:wrap}.scanbot .btn{flex:1 1 0}.scanbot .snap{flex-basis:100%;background:var(--tomato);color:#fff;min-height:60px;font:700 16px Onest,sans-serif;gap:10px}.scanbot .snap svg{width:24px;height:24px}.scanbot .snap[hidden]{display:none}
 @media(prefers-reduced-motion:reduce){*,::before,::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -171,7 +172,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <video id="vid" playsinline muted></video>
     <div class="frame"></div>
     <div class="scantop" id="scanmsg">Apunta al código de barras</div>
-    <div class="scanbot"><button class="btn" id="torch" hidden>Linterna</button><button class="btn" id="scanManual">A mano</button><button class="btn" id="scanClose">Cerrar</button></div>
+    <div class="scanbot"><button class="btn snap" id="snapLabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto de la etiqueta del precio</button><button class="btn" id="torch" hidden>Linterna</button><button class="btn" id="scanManual">A mano</button><button class="btn" id="scanClose">Cerrar</button></div>
   </div>
 
   <section class="shop">
@@ -476,7 +477,8 @@ function prefillFromCode(code,msg){
 
 /* ---- Open Food Facts + Open Prices (solo lectura) ---- */
 async function getJSON(url){
-  const c=new AbortController(),t=setTimeout(()=>c.abort(),6000);
+  if(!navigator.onLine)return null;
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),4000);
   try{const r=await fetch(url,{signal:c.signal});return r.ok?await r.json():null}catch(e){return null}finally{clearTimeout(t)}
 }
 const fdate=d=>{const [y,m,dd]=String(d||'').split('-');return dd?dd+'/'+m+'/'+y:''};
@@ -491,7 +493,7 @@ async function lookupOnline(code){
   if(shHere&&!$('iPrice').value.trim()){const v=Number(shHere.price);
     if(shHere.unit==='kg'){setMode('kg');$('iKg').value=v.toFixed(2).replace('.',',')}else $('iPrice').value=v.toFixed(2).replace('.',',');
     $('note').hidden=false;$('note').textContent='Precio compartido por '+(shHere.n>1?shHere.n+' personas':'otra persona')+' en '+shHere.store+' ('+new Date(shHere.last_at).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})+'). Compruébalo con la etiqueta.';
-    calc();$('pItem').textContent='Encontrado en los precios compartidos de Mi carrito.';$('iPrice').focus();return}
+    calc();$('pItem').textContent='Encontrado en los precios compartidos de Mi carrito.';return}
   const p=off&&off.status===1&&off.product||{},items=(pr&&pr.items)||[];
   let name=[p.product_name_es||p.product_name||(items[0]&&items[0].product&&items[0].product.product_name)||'',p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ');
   const es=items.filter(i=>i.location&&i.location.osm_address_country_code==='ES'),
@@ -509,7 +511,6 @@ async function lookupOnline(code){
   msg=shName?'Encontrado en los productos compartidos de Mi carrito.':name&&best?'Encontrado en Open Food Facts.':name?'Encontrado el nombre en Open Food Facts; nadie ha compartido aún su precio en España.':best?'Hay un precio compartido, pero no el nombre.':'No está en Open Food Facts: búscalo en tus compras o escribe el precio.';
   if(!navigator.onLine&&!name&&!best)msg='Sin conexión: búscalo en tus compras o escribe el precio.';
   $('pItem').textContent=msg;
-  $('iPrice').focus();
 }
 
 /* ---- lectura del código de barras desde una foto ---- */
@@ -558,7 +559,8 @@ async function startScan(target){
   try{tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
   if(!det&&'BarcodeDetector' in window){try{const f=await BarcodeDetector.getSupportedFormats();if(f.includes('ean_13'))det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','itf'].filter(x=>f.includes(x))})}catch(e){}}
   if(!det&&!mfr&&window.ZXing){const h=new Map(),F=ZXing.BarcodeFormat;h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.ITF]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);mfr=new ZXing.MultiFormatReader();mfr.setHints(h)}
-  $('scanmsg').textContent='Apunta al código de barras';
+  $('snapLabel').hidden=scanTarget==='code';
+  $('scanmsg').textContent=scanTarget==='code'?'Apunta al código de barras':'Apunta al código de barras, o haz foto a la etiqueta del precio';
   tick();
 }
 async function readFrame(){
@@ -579,6 +581,12 @@ async function tick(){
 $('scan').onclick=()=>startScan();
 $('codeScan').onclick=()=>startScan('code');
 $('scanClose').onclick=stopScan;
+$('snapLabel').onclick=()=>{
+  const v=$('vid');if(!v.videoWidth){toast('La cámara aún no está lista');return}
+  const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+  try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
+  c.toBlob(b=>{stopScan();if(!b)return;
+    openItem({msg:'Leyendo la etiqueta…',focus:'iName'});readLabel(new File([b],'etiqueta.jpg',{type:'image/jpeg'}))},'image/jpeg',.92)};
 function fillCode(code){
   $('iCode').value=code;const k=known[code];
   if(k){const pf=priceFor(k);if(!$('iName').value.trim())$('iName').value=k.name;
@@ -884,7 +892,7 @@ let device=load('cart.device','');if(!device){device=(crypto.randomUUID?crypto.r
 async function sbRpc(fn,args){
   if(!sbOn())return null;
   const h={'Content-Type':'application/json',apikey:SB_KEY};if(!SB_KEY.startsWith('sb_'))h.Authorization='Bearer '+SB_KEY;
-  const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
+  const c=new AbortController(),t=setTimeout(()=>c.abort(),5000);
   try{const r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:h,body:JSON.stringify(args),signal:c.signal});
     if(!r.ok)throw new Error(r.status);const tx=await r.text();return tx?JSON.parse(tx):null}finally{clearTimeout(t)}
 }
@@ -990,7 +998,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sE
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
 render();renderShare();syncList();flushPrices();checkJoinLink();if(listCode&&sbOn())loadMembers();
-if('serviceWorker' in navigator&&location.hostname.endsWith('github.io'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
+  /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
+  setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}
 }
 </script>
 </body>
