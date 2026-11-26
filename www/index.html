@@ -42,6 +42,8 @@ button{font-family:inherit}
 #sShare .linkbtn:not([hidden]){display:block;text-align:left}
 .shop-h{flex-wrap:wrap}.hbtns{display:flex;gap:14px}
 .shopother{padding:6px 18px 12px;font-size:13px;color:var(--mute)}.shopother:empty{display:none}.shopother .linkbtn{font-size:13px;min-height:36px;padding:4px 6px}
+.mv{background:none;border:0;padding:4px 0;color:var(--ink);font:600 13px Onest,sans-serif;text-decoration:underline;text-underline-offset:2px;cursor:pointer;min-height:32px}
+#moveLeft:not([hidden]){display:block;margin-top:10px}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -243,6 +245,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <div class="sugt" id="lsugt"></div><div class="sug" id="lsug"></div>
     <div id="lpub"></div>
     <div class="sugt">En tu lista</div><ul id="lcur"></ul>
+    <button type="button" class="linkbtn" id="moveLeft" hidden>Pasar lo que falta a otra tienda</button>
     <div class="sbtns"><button type="button" class="btn ghost" id="lClear">Vaciar lista</button><button class="btn primary">Listo</button></div>
   </form>
 </div>
@@ -309,6 +312,17 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
       <button type="button" class="linkbtn" id="shareLeave">Salir de esta lista en este móvil</button>
     </div>
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="shareClose">Cerrar</button></div>
+  </form>
+</div>
+
+<div class="scrim" id="sMove" role="dialog" aria-modal="true" aria-labelledby="tMove">
+  <form class="sheet" id="fMove">
+    <h2 id="tMove">Pasar a otra tienda</h2>
+    <p id="pMove"></p>
+    <div class="storelist" id="moveList"></div>
+    <label for="iMoveNew">Otra tienda</label>
+    <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iMoveNew" autocomplete="off" placeholder="Ej. Mercadona, Lidl…"><button class="btn primary" style="min-height:52px;font-size:15px">Pasar</button></div>
+    <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="moveClose">Cancelar</button></div>
   </form>
 </div>
 
@@ -735,9 +749,29 @@ function renderShop(){
   $('shopUl').innerHTML=L.length?L.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
     :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
   const oth={};for(const x of shop)if(x.store!==store&&!x.done)oth[x.store]=(oth[x.store]||0)+1;
-  const ok=Object.keys(oth);$('shopOther').innerHTML=ok.length?'También tienes lista en: '+ok.map(k=>`<button type="button" class="linkbtn" data-s="${esc(k)}">${esc(k)} (${oth[k]})</button>`).join(' '):'';
+  const ok=Object.keys(oth);$('shopOther').innerHTML=(ok.length?'También tienes lista en: '+ok.map(k=>`<button type="button" class="linkbtn" data-s="${esc(k)}">${esc(k)} (${oth[k]})</button>`).join(' '):'')+(got&&left.length?`<div><button type="button" class="linkbtn" data-mv="1">Pasar lo que falta (${left.length}) a otra tienda</button></div>`:'');
 }
-$('shopOther').onclick=e=>{const b=e.target.closest('button');if(b)useStore(b.dataset.s)};
+$('shopOther').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.mv){moveLeftover();return}useStore(b.dataset.s)};
+let moveIds=[];
+function priceAt(n,st){const o=byName[norm(n)];if(o&&o.prices&&o.prices[st])return o.prices[st].p;if(st==='Carrefour'){const c=CAT0.find(r=>norm(r[0])===norm(n));if(c)return c[1]}return null}
+function openMove(ids,label){moveIds=ids;$('pMove').textContent=label;
+  const o=stores.filter(x=>x!==store);
+  $('moveList').innerHTML=o.length?o.map(x=>`<button type="button" data-s="${esc(x)}"><span>${esc(x)}</span><span>${shop.filter(i=>i.store===x&&!i.done).length||''}</span></button>`).join(''):'<p>No tienes otras tiendas todavía: escribe una abajo.</p>';
+  $('iMoveNew').value='';$('sMove').classList.add('on')}
+function moveLeftover(){const L=cur().filter(x=>!x.done);if(!L.length)return;openMove(L.map(x=>x.id),L.length===1?'«'+L[0].name+'» pasará a la tienda que elijas.':'Los '+L.length+' productos que te faltan pasarán a la tienda que elijas.')}
+function doMove(target){
+  target=target.trim().replace(/\s+/g,' ');if(!target||norm(target)===norm(store))return;
+  const ex0=stores.find(x=>norm(x)===norm(target));if(ex0)target=ex0;else stores.push(target);
+  let n=0;
+  for(const id of moveIds){const x=shop.find(s=>s.id===id);if(!x)continue;
+    const dup=shop.find(s=>s!==x&&s.store===target&&!s.done&&norm(s.name)===norm(x.name)),p=priceAt(x.name,target);
+    if(dup){dup.qty+=x.qty||1;shop.splice(shop.indexOf(x),1)}else{x.store=target;x.done=false;x.cartId=null;if(p!=null)x.price=p}n++}
+  save();renderShop();if($('sList').classList.contains('on'))renderListEditor();$('sMove').classList.remove('on');
+  toast((n===1?'Pasado':'Pasados '+n)+' a la lista de '+target)}
+$('moveList').onclick=e=>{const b=e.target.closest('button');if(b)doMove(b.dataset.s)};
+$('fMove').onsubmit=e=>{e.preventDefault();doMove($('iMoveNew').value)};
+$('moveClose').onclick=()=>$('sMove').classList.remove('on');
+$('moveLeft').onclick=moveLeftover;
 $('shopUl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.closest('li').dataset.id);if(!x)return;
   if(b.dataset.a==='tog'){
     if(x.done){x.done=false;if(x.cartId&&items.some(i=>i.id===x.cartId)){items=items.filter(i=>i.id!==x.cartId);toast('Quitado del carrito: '+x.name)}x.cartId=null;save();render();return}
@@ -754,9 +788,10 @@ function renderListEditor(){
   if(w.length&&!CAT.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null]);
   $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
   $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[1]==null?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
-  $('lcur').innerHTML=L.length?L.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'}</small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
+  $('lcur').innerHTML=L.length?L.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'} · <button type="button" class="mv" data-a="mv">Pasar a otra tienda</button></small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
   const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=L.filter(x=>x.price==null).length;
   $('pList').textContent=L.length?'Te costará unos '+eur.format(est)+(np?' (más '+np+' sin precio)':''):'Añade lo que necesitas; el precio sale de tus tickets.';
+  $('moveLeft').hidden=!L.some(x=>!x.done);
   searchPublic($('lq').value.trim());
 }
 /* búsqueda por nombre en la base compartida de Mi carrito y en Open Food Facts / Open Products Facts */
@@ -793,6 +828,7 @@ $('lsug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=b.
   if(ex)ex.qty++;else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:n,price:findPrice(n),qty:1,done:false,store});
   $('lq').value='';save();renderListEditor();renderShop();$('lq').focus()};
 $('lcur').onclick=e=>{const b=e.target.closest('button');if(!b)return;const i=shop.findIndex(x=>x.id===b.closest('li').dataset.id);if(i<0)return;
+  if(b.dataset.a==='mv'){openMove([shop[i].id],'«'+shop[i].name+'» pasará a la lista de la tienda que elijas.');return}
   const a=b.dataset.a;if(a==='p')shop[i].qty++;else if(a==='m'){if(shop[i].qty>1)shop[i].qty--;else shop.splice(i,1)}else shop.splice(i,1);
   save();renderListEditor();renderShop()};
 $('fList').onsubmit=e=>{e.preventDefault();$('sList').classList.remove('on');renderShop()};
