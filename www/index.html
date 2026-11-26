@@ -40,6 +40,7 @@ button{font-family:inherit}
 .wa{background:#25d366;color:#08331a;text-decoration:none;box-shadow:none}
 .members li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.members small{color:var(--mute);font-size:13px;white-space:nowrap}
 #sShare .linkbtn:not([hidden]){display:block;text-align:left}
+.shop-h{flex-wrap:wrap}.hbtns{display:flex;gap:14px}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -171,7 +172,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><span><button class="linkbtn" id="shareList">Compartir</button> <button class="linkbtn" id="editList">Preparar</button></span></div>
+    <div class="shead shop-h"><div><b>Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button></span></div>
     <ul id="shopUl"></ul>
   </section>
 
@@ -722,7 +723,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){stopScan();closeIte
 const findPrice=n=>{const k=norm(n),o=priceFor(byName[k]);if(o&&(o.here||!CAT.some(r=>norm(r[0])===k)))return o.p;const c=CAT.find(r=>norm(r[0])===k);if(c)return c[1];const kn=Object.values(known).find(v=>norm(v.name||'')===k);return kn?kn.price:null};
 function renderShop(){
   const est=r2(shop.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=shop.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
-  $('shopSum').textContent=shop.length?(left.length?`${shop.length-left.length} de ${shop.length} · faltan ~${eur.format(leftEst)}`:'¡Lo tienes todo!')+` · total ~${eur.format(est)}`:'Vacía';
+  const got=shop.length-left.length,np=n=>n===1?'1 producto':n+' productos';
+  $('shopSum').textContent=!shop.length?'Vacía':!got?`${np(shop.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${shop.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editList').textContent=shop.length?'Editar':'Preparar';
   $('shopUl').innerHTML=shop.length?shop.map(x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`).join('')
     :'<li class="shopempty">Prepara la lista antes de salir: te digo cuánto costará y la voy tachando mientras escaneas.</li>';
