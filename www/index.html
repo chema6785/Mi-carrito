@@ -61,7 +61,8 @@ button{font-family:inherit}
 .listening .ring svg{width:54px;height:54px}.listening p{font:600 17px Onest,sans-serif;max-width:320px;margin:0}
 @keyframes pulse{50%{transform:scale(1.08);box-shadow:0 0 0 18px #ff4d2e33}}
 .pinfo:empty{display:none}.pinfo{display:flex;gap:12px;align-items:flex-start;margin:2px 0 6px;padding:10px;border-radius:16px;background:var(--bg)}
-.pinfo img{width:56px;height:56px;object-fit:contain;border-radius:10px;background:#fff;flex:none}
+.pinfo{flex-wrap:wrap}.pimg{flex:none;border:0;padding:0;background:#fff;border-radius:14px;cursor:zoom-in;width:110px;height:110px;display:grid;place-items:center;overflow:hidden}.pimg img{width:100%;height:100%;object-fit:contain}
+.lightbox{position:fixed;inset:0;z-index:40;background:#000d;display:none;align-items:center;justify-content:center;padding:24px}.lightbox.on{display:flex}.lightbox img{max-width:100%;max-height:80vh;border-radius:18px;background:#fff}
 .pinfo .pi{flex:1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mute)}
 .badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .ns{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:8px;font:800 14px Unbounded,sans-serif;color:#fff}
@@ -448,6 +449,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </form>
 </div>
 
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Foto del producto"><img id="lbImg" alt=""></div>
+
 <div class="scrim" id="sAsk" role="dialog" aria-modal="true" aria-labelledby="tAsk">
   <form class="sheet" id="fAsk">
     <h2 id="tAsk"></h2>
@@ -522,12 +525,12 @@ function healthHTML(o){if(!o)return '';const b=[];
   if(o.al&&o.al.length)b.push(`<span class="chip2">Alérgenos: ${esc(o.al.join(', '))}</span>`);
   return b.length?`<div class="badges">${b.join('')}</div>`:''}
 function renderInfo(){
-  const code=$('iCode').value.trim(),name=$('iName').value.trim(),o=offc[code];
+  const name=$('iName').value.trim(),code=$('iCode').value.trim()||codeFor(name)||'',o=offc[code];if(code&&!o)offFetch(code,renderInfo);
   const p=mode==='kg'?parseMoney($('iKg').value):parseMoney($('iPrice').value);
   const h=histFor(name,code),last=(h.filter(x=>x[2]===store).slice(-1)[0])||h[h.length-1];
   let hp='';
   if(last){hp=`<div class="spark">${sparkSVG(h.slice(-12))}<span>Última vez ${eur.format(last[1])}${mode==='kg'?'/kg':''} (${fdm(last[0])}${last[2]!==store?', '+esc(last[2]):''})${!isNaN(p)?' · '+priceDelta(p,last[1]):''}</span></div>`}
-  const img=o&&o.img?`<img src="${esc(o.img)}" alt="" loading="lazy" onerror="this.remove()">`:'';
+  const img=o&&o.img?`<button type="button" class="pimg" data-big="${esc(o.img)}" aria-label="Ver la foto en grande"><img src="${esc(o.img.replace('.200.','.400.'))}" alt="" onerror="this.src='${esc(o.img)}'"></button>`:'';
   const hh=healthHTML(o);
   $('pinfo').innerHTML=img||hh||hp?`${img}<div class="pi">${hh}${hp}</div>`:'';
 }
@@ -622,7 +625,9 @@ function calc(){
   else{c.className='calc warn';c.textContent='Para aprovechar el '+d[0]+' necesitas '+d[1]+' unidades: coge '+(d[1]-q%d[1])+' más'}
 }
 ['iPrice','iQty','iKg','iGr'].forEach(id=>$(id).addEventListener('input',calc));
-['iPrice','iKg','iName','iCode'].forEach(id=>$(id).addEventListener('input',()=>renderInfo()));$('iOffer').addEventListener('change',calc);
+['iPrice','iKg','iName','iCode'].forEach(id=>$(id).addEventListener('input',()=>renderInfo()));
+$('pinfo').onclick=e=>{const b=e.target.closest('.pimg');if(!b)return;const big=b.dataset.big;$('lbImg').src=big.replace('.200.','.full.');$('lbImg').onerror=()=>{$('lbImg').onerror=null;$('lbImg').src=big.replace('.200.','.400.')};$('lightbox').classList.add('on')};
+$('lightbox').onclick=()=>$('lightbox').classList.remove('on');$('iOffer').addEventListener('change',calc);
 
 /* etiquetas de báscula: EAN-13 que empieza por 2 = 2 + artículo (6 cifras) + importe en céntimos (5) + control */
 const isScale=c=>/^2\d{12}$/.test(c);
@@ -1072,7 +1077,7 @@ $('shopUl').onclick=e=>{if(swiped){swiped=false;return}const b=e.target.closest(
     newId=Date.now().toString(36);items.push({id:newId,code:'',name:x.name,price,qty:x.qty||1,mode:'unit',offer:''});
     x.done=true;x.cartId=newId;x.price=price;
     toast('Al carrito: '+x.name+' · '+eur.format(price*(x.qty||1))+'. Toca ✎ en el carrito si el precio ha cambiado');save();render();return}
-  if(!x.done)openItem({name:x.name,price:x.price,qty:x.qty,listId:x.id,msg:'Escanéalo o confirma el precio de la etiqueta.',focus:'iPrice'})};
+  if(!x.done)openItem({name:x.name,code:x.code||codeFor(x.name)||'',price:x.price,qty:x.qty,listId:x.id,msg:'Escanéalo o confirma el precio de la etiqueta.',focus:'iPrice'})};
 function renderListEditor(){
   const L=cur();$('tList').textContent='Lista para '+store;
   const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(L.map(x=>norm(x.name)));
