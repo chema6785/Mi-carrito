@@ -54,6 +54,18 @@ button{font-family:inherit}
 .listening.on{display:flex}.listening .ring{width:120px;height:120px;border-radius:50%;background:var(--tomato);display:grid;place-items:center;animation:pulse 1.2s ease-in-out infinite}
 .listening .ring svg{width:54px;height:54px}.listening p{font:600 17px Onest,sans-serif;max-width:320px;margin:0}
 @keyframes pulse{50%{transform:scale(1.08);box-shadow:0 0 0 18px #ff4d2e33}}
+.pinfo:empty{display:none}.pinfo{display:flex;gap:12px;align-items:flex-start;margin:2px 0 6px;padding:10px;border-radius:16px;background:var(--bg)}
+.pinfo img{width:56px;height:56px;object-fit:contain;border-radius:10px;background:#fff;flex:none}
+.pinfo .pi{flex:1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mute)}
+.badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ns{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:8px;font:800 14px Unbounded,sans-serif;color:#fff}
+.ns.a{background:#038141}.ns.b{background:#85bb2f}.ns.c{background:#e6b800;color:#1c1424}.ns.d{background:#ee8100}.ns.e{background:#e63e11}
+.chip2{border-radius:999px;padding:3px 9px;background:var(--paper);color:var(--ink);font-size:12px;font-weight:600}
+.chip2.bad{background:#fde2dc;color:#a3290a}
+.spark{display:flex;align-items:center;gap:8px}.spark svg{width:72px;height:26px;flex:none;color:var(--plum2)}.spark span{flex:1;min-width:0;text-align:left;line-height:1.35}
+.up{color:var(--warn);font-weight:700}.down{color:var(--ok);font-weight:700}
+.thumb{width:36px;height:36px;object-fit:contain;border-radius:8px;background:#fff;flex:none}
+#list>li .nmrow{display:flex;gap:10px;align-items:center}
 .chips{display:flex;gap:6px}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
@@ -217,6 +229,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   <form class="sheet" id="fItem">
     <h2 id="tItem">Añadir artículo</h2>
     <p id="pItem"></p>
+    <div class="pinfo" id="pinfo"></div>
     <div class="busy" id="busy">Leyendo el código de barras…</div>
     <div id="fields">
       <button type="button" class="btn ghost photo" id="labelBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto de la etiqueta del precio</button>
@@ -373,7 +386,9 @@ function priceFor(rec){
   return o?{p:o[1].p,d:o[1].d,at:o[0],here:false}:null;
 }
 function otherPrices(rec){const ps=rec&&rec.prices;if(!ps)return store!=='Carrefour'&&rec&&rec.price!=null?[['Carrefour',rec.price]]:[];return Object.entries(ps).filter(([k])=>k!==store).map(([k,v])=>[k,v.p])}
-function setPrice(rec,p){if(!rec.prices){rec.prices={};if(rec.price!=null&&store!=='Carrefour')rec.prices.Carrefour={p:rec.price,d:rec.date,t:0}}rec.prices[store]={p,d:ddmm(),t:Date.now()};rec.price=p;rec.date=ddmm();return rec}
+const TH={};
+let offc=load('cart.offc',{});
+function setPrice(rec,p){rec.hist=(rec.hist||[]).concat([[Date.now(),p,store]]).slice(-24);if(!rec.prices){rec.prices={};if(rec.price!=null&&store!=='Carrefour')rec.prices.Carrefour={p:rec.price,d:rec.date,t:0}}rec.prices[store]={p,d:ddmm(),t:Date.now()};rec.price=p;rec.date=ddmm();return rec}
 function compareNote(rec){const here=priceFor(rec);if(!here)return '';const o=otherPrices(rec).filter(x=>here.here?x[1]<here.p-0.004:true).sort((a,b)=>a[1]-b[1])[0];
   if(!here.here)return 'Precio de '+here.at+(here.d?' ('+here.d+')':'')+': compruébalo aquí.';
   return o?'Más barato en '+o[0]+': '+eur.format(o[1])+'.':''}
@@ -382,6 +397,44 @@ function applyByName(){CAT.forEach((r,i)=>{const o=priceFor(byName[norm(r[0])]);
 applyByName();
 shop.forEach(x=>{if(!x.store)x.store=store});
 const cur=()=>shop.filter(x=>x.store===store);
+/* ---- historial de precio ---- */
+function histFor(name,code){
+  const out=[];const D=s=>{s=String(s);return new Date(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8)).getTime()};
+  for(const [d,p] of (TH[norm(name||'')]||[]))out.push([D(d),p,'Carrefour']);
+  for(const src of [code&&known[code],name&&byName[norm(name)]])if(src&&src.hist)for(const h of src.hist)out.push(h);
+  out.sort((a,b)=>a[0]-b[0]);const u=[];for(const h of out){const l=u[u.length-1];if(!l||Math.abs(l[0]-h[0])>60000||l[1]!==h[1])u.push(h)}return u}
+function lastPrice(name,code,st){const h=histFor(name,code).filter(x=>!st||x[2]===st);return h.length?h[h.length-1]:null}
+function sparkSVG(h){if(h.length<2)return '';const ps=h.map(x=>x[1]),mn=Math.min(...ps),mx=Math.max(...ps),W=96,H=26,r=mx-mn||1;
+  const pts=h.map((x,i)=>[(i/(h.length-1))*(W-4)+2,H-3-((x[1]-mn)/r)*(H-6)]);
+  return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" points="${pts.map(p=>p.map(v=>v.toFixed(1)).join(',')).join(' ')}"/><circle cx="${pts[pts.length-1][0].toFixed(1)}" cy="${pts[pts.length-1][1].toFixed(1)}" r="2.6" fill="currentColor"/></svg>`}
+const fdm=t=>new Date(t).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
+function priceDelta(now,prev){if(prev==null||now==null)return '';const d=r2(now-prev),pc=Math.round(d/prev*100);
+  if(Math.abs(d)<0.01)return '<span>Igual que la última vez</span>';
+  return d>0?`<span class="up">Sube ${eur.format(d)} (+${pc} %)</span>`:`<span class="down">Baja ${eur.format(-d)} (${pc} %)</span>`}
+/* ---- fotos y nota de salud (Open Food Facts) ---- */
+const ALG={'en:milk':'leche','en:gluten':'gluten','en:eggs':'huevo','en:nuts':'frutos secos','en:peanuts':'cacahuete','en:soybeans':'soja','en:fish':'pescado','en:crustaceans':'crustáceos','en:molluscs':'moluscos','en:celery':'apio','en:mustard':'mostaza','en:sesame-seeds':'sésamo','en:sulphur-dioxide-and-sulphites':'sulfitos','en:lupin':'altramuz'};
+function offSave(code,p){if(!code||!p)return;offc[code]={img:p.image_front_small_url||'',ns:(p.nutriscore_grade||'').toLowerCase(),nova:p.nova_group||null,al:(p.allergens_tags||[]).map(a=>ALG[a]||null).filter(Boolean),t:Date.now()};
+  const ks=Object.keys(offc);if(ks.length>600)for(const k of ks.slice(0,ks.length-600))delete offc[k];put('cart.offc',offc)}
+const offQ=new Set();let offBusy=0;
+function offFetch(code,cb){if(!code||!/^\d{8,14}$/.test(code)||isScale(code)||offc[code]&&Date.now()-offc[code].t<30*864e5||offQ.has(code)||!navigator.onLine)return;
+  offQ.add(code);const go=async()=>{offBusy++;try{const j=await getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=image_front_small_url,nutriscore_grade,nova_group,allergens_tags');
+    if(j&&j.status===1)offSave(code,j.product);else offc[code]={img:'',t:Date.now()},put('cart.offc',offc);cb&&cb()}finally{offBusy--;offQ.delete(code)}};
+  setTimeout(go,offBusy*400)}
+function healthHTML(o){if(!o)return '';const b=[];
+  if(/^[a-e]$/.test(o.ns||''))b.push(`<span class="ns ${o.ns}" title="Nutri-Score">${o.ns.toUpperCase()}</span>`);
+  if(o.nova)b.push(`<span class="chip2${o.nova==4?' bad':''}">${o.nova==4?'Ultraprocesado':o.nova==3?'Procesado':o.nova==2?'Ingrediente culinario':'Sin procesar'}</span>`);
+  if(o.al&&o.al.length)b.push(`<span class="chip2">Alérgenos: ${esc(o.al.join(', '))}</span>`);
+  return b.length?`<div class="badges">${b.join('')}</div>`:''}
+function renderInfo(){
+  const code=$('iCode').value.trim(),name=$('iName').value.trim(),o=offc[code];
+  const p=mode==='kg'?parseMoney($('iKg').value):parseMoney($('iPrice').value);
+  const h=histFor(name,code),last=(h.filter(x=>x[2]===store).slice(-1)[0])||h[h.length-1];
+  let hp='';
+  if(last){hp=`<div class="spark">${sparkSVG(h.slice(-12))}<span>Última vez ${eur.format(last[1])}${mode==='kg'?'/kg':''} (${fdm(last[0])}${last[2]!==store?', '+esc(last[2]):''})${!isNaN(p)?' · '+priceDelta(p,last[1]):''}</span></div>`}
+  const img=o&&o.img?`<img src="${esc(o.img)}" alt="" loading="lazy" onerror="this.remove()">`:'';
+  const hh=healthHTML(o);
+  $('pinfo').innerHTML=img||hh||hp?`${img}<div class="pi">${hh}${hp}</div>`:'';
+}
 let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
@@ -408,7 +461,7 @@ function render(){
     $('blabel').textContent='';$('setBudget').textContent='Límite '+eur.format(budget);
   }else{m.hidden=true;$('left').textContent='';$('blabel').textContent='';$('setBudget').textContent='Poner límite'}
   $('list').innerHTML=items.length?items.slice().reverse().map(i=>`<li data-id="${esc(i.id)}" class="${i.id===newId?'new':''}">
-    <div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}</div></div>
+    <div class="nmrow">${i.code&&offc[i.code]&&offc[i.code].img?`<img class="thumb" src="${esc(offc[i.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}${i.code&&offc[i.code]&&/^[a-e]$/.test(offc[i.code].ns||'')?` · Nutri-Score <b>${offc[i.code].ns.toUpperCase()}</b>`:''}${i.prev!=null?' · '+priceDelta(i.mode==='kg'?i.perKg:i.price,i.prev):''}</div></div></div>
     <div class="pr">${eur.format(lineTotal(i))}</div>
     <div class="row2"><span class="unit">${i.scale?'<span class="tag">Báscula</span>':''}${i.mode==='kg'?(i.qty>1?i.qty+' × ':'')+fkg(i.grams)+' × '+eur.format(i.perKg)+'/kg':i.qty+' × '+eur.format(i.price)} ${offerTag(i)}</span>
       <button class="ico" data-a="minus" aria-label="Quitar una unidad">−</button><span class="qty">${i.qty}</span>
@@ -418,6 +471,7 @@ function render(){
     :'<li class="empty"><b>Carrito vacío</b>Pulsa Escanear y apunta al primer código de barras.</li>';
   newId=null;
   renderShop();renderStore();renderHistory();
+  for(const i of items)if(i.code&&!offc[i.code])offFetch(i.code,()=>render());
 }
 
 function renderSug(){
@@ -453,7 +507,7 @@ function openItem(opts){
   $('note').hidden=!opts.note;$('note').textContent=opts.note||'';
   $('ocrMsg').hidden=true;
   $('busy').style.display=opts.busy?'block':'none';$('fields').hidden=!!opts.busy;$('save').disabled=!!opts.busy;
-  renderSug();
+  renderSug();renderInfo();if(opts.code)offFetch(opts.code,renderInfo);
   $('sItem').classList.add('on');
   if(!opts.busy)setTimeout(()=>$(opts.focus&&opts.code?opts.focus:opts.code&&opts.price==null?'iName':opts.code?'iPrice':opts.focus||'iName').focus(),60);
 }
@@ -471,7 +525,8 @@ function calc(){
   if(s>0)c.textContent='Pagas '+eur.format(r2(p*q-s))+' en vez de '+eur.format(r2(p*q))+' (ahorras '+eur.format(s)+')';
   else{c.className='calc warn';c.textContent='Para aprovechar el '+d[0]+' necesitas '+d[1]+' unidades: coge '+(d[1]-q%d[1])+' más'}
 }
-['iPrice','iQty','iKg','iGr'].forEach(id=>$(id).addEventListener('input',calc));$('iOffer').addEventListener('change',calc);
+['iPrice','iQty','iKg','iGr'].forEach(id=>$(id).addEventListener('input',calc));
+['iPrice','iKg','iName','iCode'].forEach(id=>$(id).addEventListener('input',()=>renderInfo()));$('iOffer').addEventListener('change',calc);
 
 /* etiquetas de báscula: EAN-13 que empieza por 2 = 2 + artículo (6 cifras) + importe en céntimos (5) + control */
 const isScale=c=>/^2\d{12}$/.test(c);
@@ -501,7 +556,7 @@ async function lookupOnline(code){
   const still=()=>$('sItem').classList.contains('on')&&$('iCode').value.trim()===code&&!editing;
   const [sh,pr,off]=await Promise.all([sbRpc('get_prices',{p_code:code}).catch(()=>null),
     getJSON('https://prices.openfoodfacts.org/api/v1/prices?product_code='+code+'&currency=EUR&order_by=-date&size=50'),
-    getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name_es,product_name,brands,quantity')]);
+    getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=product_name_es,product_name,brands,quantity,image_front_small_url,nutriscore_grade,nova_group,allergens_tags')]);
   if(!still())return;
   const shr=Array.isArray(sh)?sh:[],shHere=shr.find(x=>norm(x.store)===norm(store)),shName=shr.length&&shr[0].name||'';
   if(shName&&!$('iName').value.trim()){$('iName').value=shName;renderSug()}
@@ -510,6 +565,7 @@ async function lookupOnline(code){
     $('note').hidden=false;$('note').textContent='Precio compartido por '+(shHere.n>1?shHere.n+' personas':'otra persona')+' en '+shHere.store+' ('+new Date(shHere.last_at).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'})+'). Compruébalo con la etiqueta.';
     calc();$('pItem').textContent='Encontrado en los precios compartidos de Mi carrito.';return}
   const p=off&&off.status===1&&off.product||{},items=(pr&&pr.items)||[];
+  if(off&&off.status===1){offSave(code,p);renderInfo()}
   let name=[p.product_name_es||p.product_name||(items[0]&&items[0].product&&items[0].product.product_name)||'',p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ');
   const es=items.filter(i=>i.location&&i.location.osm_address_country_code==='ES'),
         crf=es.filter(i=>norm((i.location.osm_brand||'')+' '+(i.location.osm_name||'')).includes(norm(store)));
@@ -721,6 +777,7 @@ $('fItem').onsubmit=e=>{
     rec={code,name,mode:'unit',price,offer:$('iOffer').value};
   }
   const qty=rec.mode==='kg'&&!editing?1:Math.max(1,parseInt($('iQty').value,10)||1);
+  {const lp=lastPrice(name,code,store),cp=rec.mode==='kg'?rec.perKg:rec.price;if(lp&&!editing&&Math.abs(cp-lp[1])>=0.01)rec.prev=lp[1]}
   if(code&&isScale(code)){const o=getScale(code)||{};known[scaleKey(code)]={name,perKg:rec.mode==='kg'?rec.perKg:o.perKg};rec.scale=true}
   else if(code){const prev=known[code]||{};known[code]=setPrice(Object.assign(prev,rec.mode==='kg'?{name,mode:'kg',perKg:rec.perKg}:{name,mode:'unit'}),rec.mode==='kg'?rec.perKg:rec.price)}
   if(name&&rec.mode==='unit'&&!isScale(code)){const k=norm(name);byName[k]=setPrice(byName[k]||{},rec.price)}
@@ -769,7 +826,8 @@ function renderShop(){
   const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editList').textContent=L.length?'Editar':'Preparar';
-  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`;
+  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span></span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></li>`;
+  for(const x of L)if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop());
   const groups={};for(const x of L)(groups[aisleOf(x.name)]=groups[aisleOf(x.name)]||[]).push(x);
   const multi=Object.keys(groups).length>1;
   $('shopUl').innerHTML=L.length?AISLE_ORDER.filter(a=>groups[a]).map(a=>(multi?`<li class="aisle">${esc(a)}</li>`:'')+groups[a].map(row).join('')).join('')
@@ -927,13 +985,13 @@ function searchPublic(q){
   if(pubCache[q]){showPub(q,pubCache[q]);return}
   $('lpub').innerHTML='<div class="sugt">Buscando en la base pública…</div>';
   pubT=setTimeout(async()=>{
-    const enc=encodeURIComponent(q),off=h=>getJSON('https://'+h+'/cgi/search.pl?search_terms='+enc+'&search_simple=1&action=process&json=1&page_size=8&sort_by=unique_scans_n&fields=code,product_name,product_name_es,brands,quantity');
+    const enc=encodeURIComponent(q),off=h=>getJSON('https://'+h+'/cgi/search.pl?search_terms='+enc+'&search_simple=1&action=process&json=1&page_size=8&sort_by=unique_scans_n&fields=code,product_name,product_name_es,brands,quantity,image_front_small_url,nutriscore_grade,nova_group,allergens_tags');
     const [sh,a,b]=await Promise.all([sbRpc('search_products',{p_q:q}).catch(()=>null),off('es.openfoodfacts.org'),off('es.openproductsfacts.org')]);
     const res=[],seen=new Set();
     const byCode={};for(const r of (Array.isArray(sh)?sh:[])){(byCode[r.code]=byCode[r.code]||[]).push(r)}
     for(const [code,rs] of Object.entries(byCode)){const here=rs.find(r=>norm(r.store)===norm(store)),r=here||rs.sort((x,y)=>new Date(y.last_at)-new Date(x.last_at))[0];
       seen.add(code);res.push({code,name:r.name,price:r.unit==='kg'?null:Number(r.price),src:here?'Compartido en '+r.store:'Compartido · visto en '+r.store+' a '+eur.format(Number(r.price))})}
-    for(const p of [...((a&&a.products)||[]),...((b&&b.products)||[])]){const n=p.product_name_es||p.product_name;if(!n||!p.code||seen.has(p.code))continue;seen.add(p.code);
+    for(const p of [...((a&&a.products)||[]),...((b&&b.products)||[])]){const n=p.product_name_es||p.product_name;if(!n||!p.code||seen.has(p.code))continue;seen.add(p.code);if(!offc[p.code])offSave(p.code,p);
       res.push({code:p.code,name:[n,p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ').slice(0,80),price:null,src:'Open Food Facts'})}
     pubCache[q]=res.slice(0,10);if($('lq').value.trim()===q)showPub(q,pubCache[q]);
   },600);
