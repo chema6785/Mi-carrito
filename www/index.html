@@ -1460,7 +1460,7 @@ async function backfillShared(){if(!sbOn()||load('cart.bf1',false)||!navigator.o
   try{for(let i=0;i<rows.length;i+=400)await sbRpc('add_prices',{p:rows.slice(i,i+400)});put('cart.bf1',true)}catch(e){}}
 function queuePrice(a){if(!sbOn())return;outbox.push(a);if(outbox.length>300)outbox=outbox.slice(-300);put('cart.outbox',outbox);flushPrices()}
 async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)return;flushing=true;
-  try{while(outbox.length){await sbRpc('add_price',outbox[0]);outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
+  try{while(outbox.length){try{await sbRpc('add_price',outbox[0])}catch(e){if(!/^4\d\d$/.test(String(e.message)))throw e}outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
 /* lista compartida: se suben los cambios respecto a la última sincronización y se bajan los de los demás */
 let myName=load('cart.myname',''),lastBeat=0,members=[],listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
 const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done,x.store||'']);
