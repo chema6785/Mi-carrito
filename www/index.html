@@ -1421,6 +1421,13 @@ $('bakText').onfocus=()=>$('bakText').select();
 $('bakSave').onclick=async()=>{
   const txt=JSON.stringify(backupData(),null,1),fname='mi-carrito-copia-'+new Date().toISOString().slice(0,10)+'.json',m=$('bakMsg');
   const native=!!(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform());
+  /* en la APK: se guarda como archivo y se abre el menú de compartir de Android (Drive, WhatsApp, correo, Archivos…) */
+  const P=native&&window.Capacitor.Plugins;
+  if(P&&P.Filesystem&&P.Share){try{
+      const w=await P.Filesystem.writeFile({path:fname,data:txt,directory:'CACHE',encoding:'utf8'});
+      await P.Share.share({title:'Copia de Mi carrito',text:'Copia de seguridad de Mi carrito ('+new Date().toLocaleDateString('es-ES')+')',files:[w.uri],dialogTitle:'Guardar la copia en…'});
+      m.textContent='Copia creada: '+fname+'. Guárdala en Drive, en el correo o en Archivos.';return}
+    catch(e){if(/cancel/i.test(String(e&&e.message||e))){m.textContent='Copia no guardada.';return}}}
   try{const f=new File([txt],fname,{type:'application/json'});
     if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Copia de Mi carrito'});m.textContent='Copia compartida. Guárdala en Drive, en el correo o en WhatsApp.';return}}catch(e){if(e&&e.name==='AbortError')return}
   if(!native){try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));a.download=fname;document.body.appendChild(a);a.click();a.remove();m.textContent='Copia guardada en Descargas: '+fname;return}catch(e){}}
