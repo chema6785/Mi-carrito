@@ -1263,7 +1263,9 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')$('sList').classList
 
 /* ---- tiendas ---- */
 function renderStore(){$('storeName').textContent=store}
-function openStores(){
+/* toda tienda que aparezca en tus listas o compras sale en el selector (p. ej. una lista compartida con artículos de Mercadona) */
+function fixStores(){let ch=false;for(const st of [...shop.map(x=>x.store),...history.map(h=>h.store)])if(st&&!stores.some(x=>norm(x)===norm(st))){stores.push(st);ch=true}if(ch)put('cart.stores',stores)}
+function openStores(){fixStores();
   $('storeList').innerHTML=stores.map(x=>`<button type="button" data-s="${esc(x)}" class="${x===store?'on':''}"><span>${esc(x)}</span><span>${x===store?'Ahora':''}</span></button>`).join('');
   renaming=null;$('lStore').textContent='Otra tienda';$('storeOk').textContent='Añadir';$('storeRen').textContent='Cambiar el nombre de «'+store+'»';
   $('iStore').value='';$('sStore').classList.add('on')}
@@ -1649,7 +1651,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);checkJoinLink();if(listCode&&sbOn())loadMembers();
+fixStores();applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
   setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}

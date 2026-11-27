@@ -1,4 +1,4 @@
-const C='mi-carrito-v45',F=['./','index.html','zxing.min.js','manifest.json','icon-192.png','icon-512.png'];
+const C='mi-carrito-v46',F=['./','index.html','zxing.min.js','manifest.json','icon-192.png','icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C&&!x.startsWith('mi-carrito-ocr')).map(x=>caches.delete(x)))));self.clients.claim()});
 const put=(n,req,res)=>{if(res&&res.ok){const c=res.clone();caches.open(n).then(x=>x.put(req,c))}return res};
