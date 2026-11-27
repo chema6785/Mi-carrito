@@ -1330,8 +1330,10 @@ function parseReceipt(text){
     if(/total/i.test(t)&&!/sub/i.test(t)&&amount>0){if(total==null||amount>total)total=amount;continue}
     if(TK_SKIP.test(t))continue;
     let name=t.slice(0,m.index).trim();
-    let qty=1;const q=name.match(/^(\d{1,2})\s+(?=\D)/);if(q){qty=parseInt(q[1],10);name=name.slice(q[0].length)}
+    let qty=1;const q=name.match(/^(\d{1,2})\s+(?=\D|\d{1,3}\s+[a-zñ])/i);if(q){qty=parseInt(q[1],10);name=name.slice(q[0].length)}
     name=name.replace(/\s*\d+[,.]\d{2,3}\s*(€|kg|\/kg|x)?\s*/gi,' ').replace(/\b\d+\s*x\s*/gi,' ').replace(/[^\p{L}\d .,%/-]/gu,'').replace(/\s+/g,' ').trim();
+    /* basura de la foto delante del nombre: «-J SALCHICHA», «EI PANECILLO» */
+    name=name.replace(/^[^\p{L}\d]+/u,'').replace(/^(?!(?:el|la|lo|los|las|de|del|al)\s)\p{L}{1,2}[^\p{L}\s]*\s+(?=\p{L}{3})/iu,'').trim();
     if(!/[a-zñ]{3,}/i.test(name))continue;
     out.push({name,qty,amount,disc:amount<0})}
   return {lines:out,total}}
@@ -1387,8 +1389,9 @@ $('tkBtn').onclick=()=>{$('tkCam').value='';$('tkCam').click()};
 $('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;if(tkPdf){tkPdf=false;tkLines=[];tkTotal=null;tkSub=null;tkGd=[]}
   const b=$('tkBtn');b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar un poco)';
   try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
-    const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});
-    const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});URL.revokeObjectURL(url);
+    let txt=null;try{txt=await nativeTicketText(img)}catch(e){}
+    if(!txt){const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'6'});const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});txt=data.text}
+    URL.revokeObjectURL(url);const data={text:txt};
     const r=parseReceipt(data.text),seen=new Set(tkLines.map(l=>l.name+'|'+l.amount));
     for(const l of r.lines)if(!seen.has(l.name+'|'+l.amount))tkLines.push(l);
     if(r.total!=null){tkTotal=r.total;if(!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}}
@@ -1416,7 +1419,7 @@ function parseTicketPdf(text){
     if(pend&&(m=t.match(/(-?\d+[,.]\d{2})\s*€?$/))&&!/[a-zñ]{3,}/i.test(t.replace(/eur|kg|€/gi,''))){out.push({...pend,qty:1,amount:money(m[1])});pend=null;continue}
     if(m=t.match(/^(.+?)\s+(\d+[,.]\d{2})\s*€?$/)){pend=null;if(TK_SKIP.test(t)||!/[a-zñ]{3,}/i.test(m[1]))continue;
       /* «2 PAN BARRA 0,55 1,10»: cantidad delante y precio unitario antes del importe */
-      let nm=m[1],q=1;const qm=nm.match(/^(\d{1,2})\s+(?=\D)/);if(qm){q=+qm[1];nm=nm.slice(qm[0].length)}nm=nm.replace(/\s+\d+[,.]\d{2}\s*€?$/,'');
+      let nm=m[1],q=1;const qm=nm.match(/^(\d{1,2})\s+(?=\D|\d{1,3}\s+[a-zñ])/i);if(qm){q=+qm[1];nm=nm.slice(qm[0].length)}nm=nm.replace(/\s+\d+[,.]\d{2}\s*€?$/,'');
       out.push({...split(nm),qty:q,amount:money(m[2]),dsc:0});continue}
     if(/[a-zñ]{3,}/i.test(t)&&!TK_SKIP.test(t)&&(!/^\d/.test(t)||/^\d{1,2}\s+[a-zñ]{3,}/i.test(t)))pend={...split(t.replace(/^\d{1,2}\s+(?=[a-zñ])/i,'')),dsc:0};else pend=null}
   for(const l of out)l.disc=false;
@@ -1440,7 +1443,7 @@ async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.tex
     renderReceipt()}
   catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
   finally{btn.disabled=false;btn.lastChild.textContent=label}}
-window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t)};
+window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t),recv:t=>parseReceipt(t),ocr:async(f,mx,psm,raw)=>{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:psm||'4'});const {data}=await w.recognize(raw?rawScaled(img,mx||2400):imgToCanvas(img,mx||2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});return data.text}};
 /* ---- añadir una compra pasada desde el ticket (foto o PDF), para llevar el gasto del mes ---- */
 let nt=null,ntSel='';
 function tkDate(text){const m=String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;const d=new Date(y,+m[2]-1,+m[1],12);return isNaN(d)||d>Date.now()+864e5||y<2020?null:d}
@@ -1450,19 +1453,33 @@ function openNewTicket(){fixStores();nt=null;$('ntRes').innerHTML='';$('ntSave')
   ntSel=store;$('ntStore').value='';$('ntDate').value=isoDay(new Date());$('sNewTk').classList.add('on')}
 $('ntStore').oninput=()=>{if($('ntStore').value.trim())[...$('ntStores').children].forEach(x=>x.classList.remove('on'))};
 $('ntStores').onclick=e=>{const b=e.target.closest('button');if(!b)return;ntSel=b.dataset.s;$('ntStore').value='';[...$('ntStores').children].forEach(x=>x.classList.toggle('on',x===b))};
+/* APK: lee el ticket con ML Kit (mucho mejor que en la web) y rehace las filas juntando lo que está a la misma altura */
+async function nativeTicketText(img){const T=capP('CapacitorPluginMlKitTextRecognition');if(!T)return null;
+  const b64=rawScaled(img,2600).toDataURL('image/jpeg',.92).split(',')[1];let best='';
+  for(const rot of [0,90,270]){let res;try{res=await T.detectText({base64Image:b64,rotation:rot})}catch(e){continue}
+    const L=[];for(const b of (res&&res.blocks)||[])for(const l of b.lines||[]){const bb=l.boundingBox||{},t=String(l.text||'').trim();if(t&&bb.bottom>bb.top)L.push({t,x:bb.left||0,y:(bb.top+bb.bottom)/2,h:bb.bottom-bb.top})}
+    L.sort((a,b)=>a.y-b.y);const rows=[];for(const l of L){const r=rows.find(r=>Math.abs(r.y-l.y)<Math.min(r.h,l.h)*.55);if(r){r.c.push(l)}else rows.push({y:l.y,h:l.h,c:[l]})}
+    const txt=rows.map(r=>r.c.sort((a,b)=>a.x-b.x).map(c=>c.t).join(' ')).join('\n');
+    if((txt.match(/\d[,.]\d{2}/g)||[]).length>(best.match(/\d[,.]\d{2}/g)||[]).length)best=txt;if((best.match(/\d[,.]\d{2}/g)||[]).length>=3)break}
+  return best||null}
+/* «ENTREGA 20,00 / DEVOLUCIÓN 13,01» → total 6,99 (el total en letra grande a veces se lee mal) */
+function cashTotal(text){const n=s=>s?parseFloat(s.replace(',','.')):null;const e=n((String(text).match(/entreg\w*[^\d\n]*(\d+[,.]\d{2})/i)||[])[1]),d=n((String(text).match(/(?:devoluci\w*|cambio)[^\d\n]*(\d+[,.]\d{2})/i)||[])[1]);return e!=null&&d!=null&&e>=d?r2(e-d):null}
 function ntShow(r,text){
   const lines=r.lines.filter(l=>!l.disc),its=lines.map(l=>[l.name.toLowerCase().replace(/^./,c=>c.toUpperCase()),l.amount,l.qty||1]);
   /* descuentos sueltos (sin producto) restan del total */
   const loose=r2(r.lines.filter(l=>l.disc).reduce((a,l)=>a+l.amount,0));
   const sum=r2(its.reduce((a,i)=>a+i[1],0)+loose),sub=r.sub!=null?r.sub:sum,paid=r.total!=null?r.total:null;
+  const ct=cashTotal(text);if(ct!=null&&(r.total==null||Math.abs(r.total-ct)>=0.01))r={...r,total:ct};
   const d=tkDate(text);if(d)$('ntDate').value=isoDay(d);
   nt={items:its,total:sub,paid,saved:r2(-r.lines.reduce((a,l)=>a+(l.dsc||0),0)-loose)};
   const n=its.reduce((a,i)=>a+i[2],0),off=r.sub!=null?Math.abs(sum-r.sub)>=0.02:paid!=null&&Math.abs(sum-paid)>=0.02;
   let h='<div class="tk">';
   h+=`<div class="r"><span>${n} ${n===1?'artículo':'artículos'}<small>${paid!=null&&Math.abs(paid-sub)>=0.01?'Productos '+eur.format(sub)+' · pagado '+eur.format(paid):'Total del ticket'}</small></span><b>${eur.format(paid!=null?paid:sub)}</b></div>`;
-  if(off)h+=`<div class="r bad"><span>Las líneas leídas suman ${eur.format(sum)}<small>Puede faltar alguna línea. Se guardará el total del ticket.</small></span></div>`;
+  if(off)h+=`<div class="r bad"><span>Las líneas leídas suman ${eur.format(sum)}<small>Puede faltar alguna línea, o el total estar mal leído.</small><button type="button" class="linkbtn" id="ntUseSum" style="display:block;font-size:14px;padding:4px 0">Usar ${eur.format(sum)} como total</button></span></div>`;
   h+=`<details><summary style="padding:8px 0;cursor:pointer;font-weight:600">Ver los artículos</summary><div class="hdet" style="padding:0">${its.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}</div></details></div>`;
   $('ntRes').innerHTML=h;$('ntSave').hidden=false}
+$('ntRes').addEventListener('click',e=>{if(!e.target.closest('#ntUseSum')||!nt)return;const sum=r2(nt.items.reduce((a,i)=>a+i[1],0));nt.total=sum;nt.paid=null;
+  $('ntRes').querySelector('.tk').firstElementChild.outerHTML=`<div class="r"><span>Total usado<small>Suma de las líneas leídas</small></span><b>${eur.format(sum)}</b></div>`;e.target.closest('.r').remove()});
 function ntFail(msg){$('ntRes').innerHTML=`<div class="tk"><div class="r bad"><span>${msg}</span></div></div>`;$('ntSave').hidden=true}
 $('ntPdfBtn').onclick=()=>{$('ntPdf').value='';$('ntPdf').click()};
 $('ntPdf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntPdfBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el PDF…';
@@ -1473,8 +1490,10 @@ $('ntPdf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('
 $('ntCamBtn').onclick=()=>{$('ntCam').value='';$('ntCam').click()};
 $('ntCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntCamBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar)';
   try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
-    const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});URL.revokeObjectURL(url);
-    const r={...parseReceipt(data.text),sub:null,gdisc:[]};if(!r.lines.length&&r.total==null)return ntFail('No he podido leer el ticket. Ponlo plano, con luz y que se vea entero.');ntShow(r,data.text)}
+    let text=null;try{text=await nativeTicketText(img)}catch(e){}
+    if(!text){const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'6'});const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});text=data.text}
+    URL.revokeObjectURL(url);
+    const r={...parseReceipt(text),sub:null,gdisc:[]};if(!r.lines.length&&r.total==null&&cashTotal(text)==null)return ntFail('No he podido leer el ticket. Ponlo plano, con luz y que se vea entero.');ntShow(r,text)}
   catch(err){ntFail('No he podido leer el ticket. La primera vez necesita conexión.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
 $('ntSave').onclick=()=>{if(!nt)return;const st0=$('ntStore').value.trim().replace(/\s+/g,' ')||ntSel||store,ex=stores.find(x=>norm(x)===norm(st0)),st=ex||st0;if(!ex)stores.push(st);
   const dv=$('ntDate').value,d=dv?new Date(dv+'T12:00:00'):new Date(),t=isNaN(d)?Date.now():d.getTime(),amount=nt.paid!=null?nt.paid:nt.total;
