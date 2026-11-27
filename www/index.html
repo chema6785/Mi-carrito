@@ -619,7 +619,7 @@ let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=nul
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
 let tT=null,undoAction=null;function toast(t,undo,fn){undoAction=fn||null;$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
-function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync();if(typeof scheduleCloud==='function')scheduleCloud()}
+function save(fromCloud){if(fromCloud!==true)put('cart.lchg',Date.now());put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync();if(fromCloud!==true&&typeof scheduleCloud==='function')scheduleCloud()}
 const r2=n=>Math.round(n*100)/100;
 const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
 function offerDisc(o,p,q){const d=OFF[o];return d?Math.floor(q/d[1])*p*d[2]:0}
@@ -1482,7 +1482,7 @@ async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.tex
     renderReceipt()}
   catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
   finally{btn.disabled=false;btn.lastChild.textContent=label}}
-window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t),recv:t=>parseReceipt(t),ocr:async(f,mx,psm,raw)=>{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:psm||'4'});const {data}=await w.recognize(raw?rawScaled(img,mx||2400):imgToCanvas(img,mx||2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});return data.text}};
+window.mcDbg={run:c=>eval(c),pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t),recv:t=>parseReceipt(t),ocr:async(f,mx,psm,raw)=>{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:psm||'4'});const {data}=await w.recognize(raw?rawScaled(img,mx||2400):imgToCanvas(img,mx||2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});return data.text}};
 /* ---- añadir una compra pasada desde el ticket (foto o PDF), para llevar el gasto del mes ---- */
 let nt=null,ntSel='';
 function tkDate(text){const m=String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;const d=new Date(y,+m[2]-1,+m[1],12);return isNaN(d)||d>Date.now()+864e5||y<2020?null:d}
@@ -1700,7 +1700,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList(
 addEventListener('online',()=>{syncList();flushPrices();famFlush()});
 
 /* ---- copia de seguridad ---- */
-function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,hdel,mydata:load('cart.mydata',null)}}
+function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,hdel,mydata:load('cart.mydata',null),savedAt:load('cart.lchg',0)}}
 function openBackup(){
   const nk=Object.keys(known).length,nn=Object.keys(byName).length;
   $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en tus listas.`;
@@ -1780,11 +1780,14 @@ function adoptAccountDevice(){if(!auth||!auth.user)return;const nd=auth.user.id;
   if(listCode&&sbOn())sbRpc('join_list',{p_list:listCode,p_device:nd,p_name:myName||'Yo'}).then(()=>sbRpc('leave_list',{p_list:listCode,p_device:old})).then(()=>{if(famOn){famQ=[];const s=Date.now()-400*864e5;for(const h of history)if(h.t>s)famPush(h)}loadMembers()}).catch(()=>{})}
 async function cloudPull(first){if(!auth||!navigator.onLine)return;const at=await token();if(!at)return;
   try{const r=await fetch(SB_URL+'/rest/v1/user_data?select=data,updated_at&user_id=eq.'+auth.user.id,{headers:authH()});if(!r.ok)return;const rows=await r.json();
-    if(rows[0]&&rows[0].data){const reload=mergeData(rows[0].data);applyByName();save(true);render();if(first&&rows[0].data.history)toast('Datos de tu cuenta recuperados');if(reload)setTimeout(()=>location.reload(),1500)}}catch(e){}}
+    const cd=rows[0]&&rows[0].data;if(cd){const newer=load('cart.lchg',0)>(cd.savedAt||0);const reload=mergeData(cd);if(!newer)put('cart.lchg',Math.max(load('cart.lchg',0),cd.savedAt||0));applyByName();save(true);render();if(typeof renderHistory==='function')renderHistory();if(newer)scheduleCloud(1500);if(first&&rows[0].data.history)toast('Datos de tu cuenta recuperados');if(reload)setTimeout(()=>location.reload(),1500)}}catch(e){}}
 async function cloudPush(){if(!auth||cloudBusy||!navigator.onLine)return;cloudBusy=true;
   try{const at=await token();if(!at)return;const r=await fetch(SB_URL+'/rest/v1/user_data?on_conflict=user_id',{method:'POST',headers:{...authH(),Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:auth.user.id,data:backupData(),updated_at:new Date().toISOString()})});
     if(r.ok){cloudAt=Date.now();put('cart.cloudat',cloudAt);renderAcc()}}catch(e){}finally{cloudBusy=false}}
-function scheduleCloud(){try{if(!auth)return}catch(e){return}clearTimeout(cloudT);cloudT=setTimeout(cloudPush,15000)}
+function scheduleCloud(ms){try{if(!auth)return}catch(e){return}clearTimeout(cloudT);cloudT=setTimeout(cloudPush,ms||5000)}
+/* sincronizar: al volver a la app y cada minuto mientras está abierta */
+let lastPull=0;function syncCloud(){if(!auth||document.hidden||Date.now()-lastPull<20000)return;lastPull=Date.now();cloudPull(false)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud()});setInterval(syncCloud,60000);
 function logout(silent){auth=null;put('cart.auth',null);renderAcc();if(!silent)toast('Sesión cerrada. Tus datos siguen en este móvil.')}
 function renderAcc(){const on=!!(auth&&auth.user);$('accOff').hidden=on;$('accOn').hidden=!on;$('mAccTx').textContent=on?(auth.user.name||auth.user.email):'Entrar con Google';
   $('mAccSub').textContent=on?'Tus datos se guardan en la nube':'Guarda tus datos en la nube (opcional)';
@@ -1800,7 +1803,7 @@ $('accDel').onclick=()=>ask({title:'¿Borrar tu cuenta?',text:'Se borran tu cuen
   try{const r=await fetch(SB_URL+'/rest/v1/rpc/delete_my_account',{method:'POST',headers:authH(),body:'{}'});if(!r.ok)throw 0;listCode='';put('cart.listcode','');famOn=false;put('cart.famon',false);renderShare();logout(true);$('sAcc').classList.remove('on');toast('Cuenta borrada')}catch(e){toast('No he podido borrarla ahora')}});
 if(/access_token=|error_description=/.test(location.hash)){const h=location.hash;window.history.replaceState(null,'',location.pathname+location.search);gotTokens(h)}
 if(load('cart.handoff',null)){takeHandoff();pollHandoff()}
-if(auth){adoptAccountDevice();setTimeout(()=>{cloudPull(false).then(scheduleCloud)},3000)}
+if(auth){adoptAccountDevice();setTimeout(()=>{lastPull=Date.now();cloudPull(false)},3000)}
 renderAcc();
 
 if(isNative()){$('checkUpd').hidden=false;setTimeout(()=>checkUpdate(false),4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>checkUpdate(false),1500)})}else $('verTxt').textContent='Versión web: se actualiza sola';
@@ -1829,7 +1832,12 @@ $('bakSave').onclick=async()=>{
 /* junta una copia (archivo o nube) con lo que hay: lo de este móvil manda, las compras se suman */
 let hdel=load('cart.hdel',[]);
 function mergeData(d){let reload=false;
-  known=Object.assign({},d.known||{},known);byName=Object.assign({},d.byName||{},byName);
+  /* precios: gana el más reciente de cada producto */
+  const recT=r=>{let t=0;if(r&&typeof r==='object'){if(r.t)t=r.t;if(r.prices)for(const o of Object.values(r.prices))if(o&&o.t>t)t=o.t;if(Array.isArray(r.hist))for(const h of r.hist)if(h&&h[0]>t)t=h[0]}return t};
+  const mergeRec=(a,b)=>{for(const [k,r] of Object.entries(b||{}))if(!a[k]||recT(r)>recT(a[k]))a[k]=r;return a};
+  known=mergeRec({...known},d.known);byName=mergeRec({...byName},d.byName);
+  /* lista, carrito y límite: si la otra copia es más nueva, manda ella */
+  if(d.savedAt&&d.savedAt>load('cart.lchg',0)){if(Array.isArray(d.shop))shop=d.shop;if(Array.isArray(d.items))items=d.items;if(d.budget!==undefined)budget=d.budget}
   if(!shop.length&&Array.isArray(d.shop)){shop=d.shop;shop.forEach(x=>{if(!x.store)x.store=store})}
   if(!budget&&d.budget)budget=d.budget;
   if(!items.length&&Array.isArray(d.items))items=d.items;
