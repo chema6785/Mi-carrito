@@ -1752,9 +1752,9 @@ $('checkUpd').onclick=()=>checkUpdate(true);
 /* ---- cuenta con Google (opcional): tus datos guardados en la nube y la familia unida por cuenta ---- */
 let auth=load('cart.auth',null),cloudT=null,cloudBusy=false,cloudAt=load('cart.cloudat',0);
 const authH=()=>({'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+auth.at});
-function loginGoogle(){const redir=isNative()?'micarrito://login':location.origin+location.pathname;
+function loginGoogle(){const redir=isNative()?'https://chema6785.github.io/Mi-carrito/login.html':location.origin+location.pathname;
   toast('Abriendo Google…');location.href=SB_URL+'/auth/v1/authorize?provider=google&redirect_to='+encodeURIComponent(redir)}
-async function gotTokens(frag){const p=new URLSearchParams(String(frag||'').replace(/^.*?#/,''));
+async function gotTokens(frag){const f=String(frag||''),p=new URLSearchParams(f.includes('#')?f.replace(/^.*?#/,''):f.replace(/^[^?]*\?/,''));
   if(p.get('error')){toast('No se pudo entrar: '+(p.get('error_description')||p.get('error')).replace(/\+/g,' '));return}
   const at=p.get('access_token'),rt=p.get('refresh_token');if(!at||!rt)return;
   auth={at,rt,exp:Date.now()+(+p.get('expires_in')||3600)*1000,user:null};

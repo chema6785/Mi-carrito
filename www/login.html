@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Mi carrito · Volver a la app</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1e1e1e;color:#f1f1ef;font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:24px;box-sizing:border-box}
+main{max-width:360px}h1{font-size:24px;margin:0 0 8px}p{color:#a3a3a0;margin:0 0 22px}
+a.btn{display:block;padding:16px 20px;border-radius:16px;background:#ff4d2e;color:#fff;font-weight:700;text-decoration:none;font-size:18px}
+a.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
+</style>
+</head>
+<body>
+<main>
+<h1 id="t">Ya has entrado</h1>
+<p id="p">Toca el botón para volver a Mi carrito.</p>
+<a class="btn" id="go" href="#">Volver a Mi carrito</a>
+</main>
+<script>
+/* Google → Supabase → aquí (con la sesión en el #). Chrome no deja saltar a la app sin un toque,
+   así que se intenta solo y, si no, el botón lo hace. La sesión viaja solo a la app Mi carrito. */
+(function(){
+  var h=location.hash.replace(/^#/,''),q=new URLSearchParams(h),go=document.getElementById('go');
+  if(q.get('error')){document.getElementById('t').textContent='No se ha podido entrar';document.getElementById('p').textContent=(q.get('error_description')||q.get('error')).replace(/\+/g,' ');}
+  var keep=new URLSearchParams();['access_token','refresh_token','expires_in','error','error_description'].forEach(function(k){if(q.get(k))keep.set(k,q.get(k))});
+  var web=location.origin+location.pathname.replace(/login\.html$/,'');
+  var intent='intent://login?'+keep.toString()+'#Intent;scheme=micarrito;package=es.micarrito.app;S.browser_fallback_url='+encodeURIComponent(web+'#'+keep.toString())+';end';
+  go.href=/Android/i.test(navigator.userAgent)?intent:web+'#'+keep.toString();
+  history.replaceState(null,'',location.pathname);
+  if(keep.get('access_token'))setTimeout(function(){location.href=go.href},300);
+})();
+</script>
+</body>
+</html>
