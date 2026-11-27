@@ -1836,15 +1836,15 @@ async function checkUpdate(manual){
   if(!isNative())return;
   try{if(!myBuild){const r=await fetch('build.json',{cache:'no-store'});myBuild=r.ok?await r.json():null;if(myBuild)window.__ver=String(myBuild.sha||'').slice(0,7)}
     if(myBuild)$('verTxt').textContent='Versión del '+new Date(myBuild.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    if(!manual&&Date.now()-load('cart.updcheck',0)<6*36e5)return;
+    if(!manual&&Date.now()-load('cart.updcheck',0)<15*60000)return;
     if(!navigator.onLine){if(manual)toast('Sin conexión para buscar actualizaciones');return}
     put('cart.updcheck',Date.now());
     const j=await getJSON('https://api.github.com/repos/chema6785/Mi-carrito/releases/tags/apk');
-    const a=j&&j.assets&&j.assets[0];if(!a||!myBuild){if(manual)toast('No he podido comprobarlo ahora');return}
+    const a=j&&j.assets&&j.assets[0];if(!a||!myBuild){logErr('update',!a?'sin respuesta de GitHub':'sin build.json');if(manual)toast('No he podido comprobarlo ahora');return}
     const remote=Date.parse(a.updated_at),mine=Date.parse(myBuild.t);
     if(remote>mine+10*60000){if(!manual&&load('cart.updskip','')===a.updated_at)return;
       $('pUpd').textContent='Se publicó el '+new Date(remote).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'. Descárgala e instálala encima: no perderás tus datos.';$('updGo').dataset.v=a.updated_at;$('sUpd').classList.add('on')}
-    else if(manual)toast('Ya tienes la última versión')}catch(e){if(manual)toast('No he podido comprobarlo ahora')}
+    else if(manual)toast('Ya tienes la última versión')}catch(e){logErr('update',e&&e.message||e);if(manual)toast('No he podido comprobarlo ahora')}
 }
 $('updLater').onclick=()=>{put('cart.updskip',$('updGo').dataset.v||'');$('sUpd').classList.remove('on')};
 $('updGo').onclick=()=>{$('sUpd').classList.remove('on');toast('Descargando… cuando termine, ábrela e instálala');location.href=APK_URL};
