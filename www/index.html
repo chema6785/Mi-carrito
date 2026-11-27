@@ -96,6 +96,7 @@ button{font-family:inherit}
 .temas span{display:block;padding:8px 12px 10px}
 .nsm{min-width:22px;height:22px;font-size:12px;border-radius:7px;flex:none}
 .chips{display:flex;gap:6px}
+.tkc{min-height:38px;padding:4px 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--bg,transparent);color:inherit;font:600 14px Onest,sans-serif;cursor:pointer;text-align:left;flex:none}.tkpick:not([hidden]){display:flex;flex-wrap:wrap}
 .chip{white-space:nowrap;min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid #ffffff40;background:#ffffff14;color:#fff;font:600 14px Onest,sans-serif;cursor:pointer}
 .total{font:800 clamp(54px,18vw,92px)/1 Unbounded,sans-serif;letter-spacing:-.04em;margin:14px 0 18px;white-space:nowrap;font-variant-numeric:tabular-nums;transform-origin:left center}
 .total.bump{animation:bump .45s cubic-bezier(.3,1.6,.5,1)}
@@ -1304,8 +1305,12 @@ function parseReceipt(text){
     if(!/[a-zñ]{3,}/i.test(name))continue;
     out.push({name,qty,amount,disc:amount<0})}
   return {lines:out,total}}
-const tkWords=t=>norm(t).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!/\d/.test(w)&&!/^(carrefour|crf|cdc|hacendado|deliplus|bosque|verde)$/.test(w));
-function tkScore(a,b){const A=tkWords(a),B=tkWords(b);if(!A.length||!B.length)return 0;let n=0;for(const x of A)if(B.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4))))n++;return n/Math.max(A.length,Math.min(B.length,3))}
+const tkWords=t=>norm(t).replace(/[^a-z0-9ñ ]/g,' ').split(/\s+/).filter(w=>w.length>=3&&!/\d/.test(w)&&!/^(carrefour|crf|cdc|hacendado|deliplus|bosque|verde|con|del|los|las|para|por|granel)$/.test(w));
+function tkScore(a,b){const A=tkWords(a),B=tkWords(b);if(!A.length||!B.length)return 0;const hit=(X,Y)=>X.filter(x=>Y.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4)))).length;const n=hit(A,B);
+  /* si todas las palabras del nombre corto están en el largo («Tulipán» ↔ «TULIPAN CON SAL 400») también vale */
+  const S=A.length<=B.length?A:B,full=hit(S,S===A?B:A)===S.length;return Math.max(n/Math.max(A.length,Math.min(B.length,3)),full?.6:0)}
+/* nombres del ticket que ya has unido con un artículo tuyo: «JAMON L.FINA 2X225G» = «Jamón cocido extra 450» */
+let tkAlias=load('cart.tkalias',{}),tkCmp=null;
 function compareReceipt(){
   /* junta líneas repetidas del mismo producto y le resta sus descuentos */
   const G=[];
@@ -1315,23 +1320,34 @@ function compareReceipt(){
     if(best&&bs>=.5){best.amount=r2(best.amount+d.amount);best.dsc=r2(best.dsc+d.amount)}else disc.push(d)}
   /* la app también se agrupa por nombre (dos «pechuga pavo» = una línea) y se emparejan primero las parejas más parecidas */
   const A=[];for(const x of tkList()){const k=tkWords(x.name||'').join(' ');const a=k&&A.find(a=>a.k===k);if(a){a.tot=r2(a.tot+x.tot);a.qty+=x.qty||1;a.its.push(x.it)}else A.push({k,name:x.name,tot:x.tot,qty:x.qty||1,its:[x.it]})}
-  const P=[];A.forEach((a,i)=>G.forEach((g,j)=>{const sc=tkScore(a.name||'',g.name);if(sc>=.5)P.push({i,j,sc:sc+(Math.abs(a.tot-g.amount)<0.01?.3:0)})}));P.sort((x,y)=>y.sc-x.sc);
+  const P=[];A.forEach((a,i)=>G.forEach((g,j)=>{const al=a.k&&tkAlias[g.k]===a.k,sc=al?3:tkScore(a.name||'',g.name);if(sc>=.5)P.push({i,j,sc:sc+(Math.abs(a.tot-g.amount)<0.01?.3:0)})}));P.sort((x,y)=>y.sc-x.sc);
   const used=new Set(),ua=new Map();for(const p of P){if(used.has(p.j)||ua.has(p.i))continue;used.add(p.j);ua.set(p.i,p.j)}
-  const rows=A.map((a,i)=>({it:a,l:ua.has(i)?G[ua.get(i)]:null}));
+  /* lo que queda sin emparejar: si un artículo tuyo y una línea del ticket valen exactamente lo mismo (y no hay otro igual), seguramente son el mismo */
+  const guess=new Set();
+  A.forEach((a,i)=>{if(ua.has(i))return;const c=G.map((g,j)=>j).filter(j=>!used.has(j)&&Math.abs(G[j].amount-a.tot)<0.01);
+    if(c.length!==1)return;const j=c[0];if(A.some((b,k)=>k!==i&&!ua.has(k)&&Math.abs(b.tot-G[j].amount)<0.01))return;used.add(j);ua.set(i,j);guess.add(i)});
+  const rows=A.map((a,i)=>({it:a,l:ua.has(i)?G[ua.get(i)]:null,guess:guess.has(i)}));
   const extra=G.filter((g,i)=>!used.has(i));
-  return {rows,extra,disc}}
+  return tkCmp={rows,extra,disc}}
+function tkJoin(g,a){if(!g||!a||!g.k||!a.k)return;tkAlias[g.k]=a.k;put('cart.tkalias',tkAlias);renderReceipt()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-tkok],[data-tkpick],[data-tkj]');if(!b||!tkCmp)return;
+  if(b.dataset.tkok!=null){const r=tkCmp.rows[+b.dataset.tkok];if(r)tkJoin(r.l,r.it);toast('Unidos: la próxima vez lo reconoceré por el nombre');return}
+  if(b.dataset.tkpick!=null){const box=b.parentElement.querySelector('.tkpick');if(box)box.hidden=!box.hidden;return}
+  const [j,i]=b.dataset.tkj.split('|').map(Number);tkJoin(tkCmp.extra[j],tkCmp.rows[i]&&tkCmp.rows[i].it);toast('Unidos: la próxima vez lo reconoceré por el nombre')});
 function renderReceipt(){
   if(!tkLines.length){tkEl().innerHTML='';return}
   const {rows,extra,disc}=compareReceipt();
-  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01),miss=rows.filter(r=>!r.l);
+  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01),miss=rows.filter(r=>!r.l),gs=rows.filter(r=>r.guess);
   let h='<div class="tk">';
   const ref=tkSub!=null?tkSub:tkTotal;if(ref!=null){const ap=tkCtx?tkCtx.total:cartTotal(),d=r2(ref-ap);h+=`<div class="r${Math.abs(d)>=0.01?' bad':''}"><span>${tkSub!=null?'Artículos del ticket (subtotal)':'Total del ticket'} ${eur.format(ref)}<small>En la app ${eur.format(ap)}</small></span><b${Math.abs(d)<0.01?' class="ok"':''}>${Math.abs(d)<0.01?'Cuadra':(d>0?'+':'')+eur.format(d)}</b></div>`}
   if(tkGd.length){const g=r2(tkGd.reduce((a,x)=>a+x.amount,0));h+=`<div class="r"><span>Cheques y vales<small>${tkGd.map(x=>esc(x.name.toLowerCase())).join(', ')}${tkTotal!=null?' · total pagado '+eur.format(tkTotal):''}</small></span><b class="ok">${eur.format(g)}</b></div>`}
   h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':'El ticket coincide con la app'}</h3>`;
   if(!diff.length&&!extra.length)h+=`<div class="ok">${rows.length-miss.length} productos comprobados${miss.length?' · '+miss.length+' no los he encontrado en el ticket':''}.</div>`;
   for(const r of diff){const d=r2(r.l.amount-r.it.tot);h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(r.it.tot)}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
-  for(const l of extra)h+=`<div class="r bad"><span>${esc(l.name)}<small>Cobrado en el ticket, pero no está en la app${l.qty>1?' ('+l.qty+' uds)':''}</small></span><b>${eur.format(l.amount)}</b></div>`;
+  for(const [j,l] of extra.entries())h+=`<div class="r bad"><span>${esc(l.name)}<small>Cobrado en el ticket, pero no está en la app${l.qty>1?' ('+l.qty+' uds)':''}</small>${miss.length?`<button type="button" class="linkbtn" data-tkpick style="display:block;font-size:14px;padding:4px 0">Es un artículo mío con otro nombre</button><span class="tkpick" hidden>${miss.map(r=>`<button type="button" class="tkc" data-tkj="${j}|${rows.indexOf(r)}" style="margin:3px 4px 0 0">${esc(r.it.name)} · ${eur.format(r.it.tot)}</button>`).join('')}</span>`:''}</span><b>${eur.format(l.amount)}</b></div>`;
   if(diff.length||extra.length)for(const r of miss)h+=`<div class="r"><span>${esc(r.it.name)}<small>En la app, pero no lo encuentro en el ticket (puede estar mal leído)</small></span><b>${eur.format(r.it.tot)}</b></div>`;
+  if(gs.length){h+=`<h3>¿Son el mismo artículo?</h3><div style="font-size:13px;color:var(--mute)">Tienen nombre distinto pero el mismo importe. Si me lo confirmas, la próxima vez los uno aunque cambie el precio.</div>`;
+    for(const r of gs){const i=rows.indexOf(r);h+=`<div class="r"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}» · ${eur.format(r.l.amount)}</small></span><button type="button" class="tkc" data-tkok="${i}">Sí, es el mismo</button></div>`}}
   if(disc.length)h+=`<div class="r"><span>Descuentos del ticket<small>${disc.map(l=>esc(l.name)).join(', ')}</small></span><b class="ok">${eur.format(r2(disc.reduce((a,l)=>a+l.amount,0)))}</b></div>`;
   if(diff.length&&!tkCtx)h+=`<button type="button" class="linkbtn" id="tkFix" style="display:block">Corregir esos precios en la app con los del ticket</button>`;
   if(extra.length&&!tkCtx)h+=`<button type="button" class="linkbtn" id="tkAdd" style="display:block">Añadir al carrito lo cobrado que falta (${extra.length})</button>`;
@@ -1526,7 +1542,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList(
 addEventListener('online',()=>{syncList();flushPrices()});
 
 /* ---- copia de seguridad ---- */
-function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history}}
+function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias}}
 function openBackup(){
   const nk=Object.keys(known).length,nn=Object.keys(byName).length;
   $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en tus listas.`;
@@ -1607,6 +1623,7 @@ function restore(txt){
     if(!budget&&d.budget)budget=d.budget;
     if(!items.length&&Array.isArray(d.items))items=d.items;
     if(Array.isArray(d.stores))for(const x of d.stores)if(!stores.includes(x))stores.push(x);
+    if(d.tkAlias&&typeof d.tkAlias==='object'){tkAlias=Object.assign({},d.tkAlias,tkAlias);put('cart.tkalias',tkAlias)}
     if(Array.isArray(d.history)){const ids=new Set(history.map(h=>h.id));for(const h of d.history)if(!ids.has(h.id))history.push(h);history.sort((a,b)=>b.t-a.t)}
     applyByName();
     save();render();m.className='calc';m.textContent='Copia recuperada: '+(Object.keys(known).length-before)+' códigos nuevos añadidos. Lo que ya tenías se mantiene.';
