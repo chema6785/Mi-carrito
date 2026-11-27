@@ -219,6 +219,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 .frame{position:absolute;left:9%;right:9%;top:50%;height:28%;transform:translateY(-55%);border-radius:28px;box-shadow:0 0 0 100vmax #000000b3;border:3px solid var(--lime)}
 .frame::after{content:"";position:absolute;left:8%;right:8%;top:50%;height:3px;border-radius:3px;background:var(--tomato);box-shadow:0 0 16px var(--tomato);animation:sweep 1.4s ease-in-out infinite alternate}
 @keyframes sweep{from{transform:translateY(-38px)}to{transform:translateY(38px)}}
+.scanok{position:relative;margin:12px auto 0;width:max-content;max-width:calc(100% - 32px);display:flex;gap:12px;align-items:center;background:#0f7a3a;color:#fff;border-radius:14px;padding:10px 14px;font:600 15px Onest,sans-serif;box-shadow:0 4px 16px #0006;animation:okin .2s ease-out}.scanok[hidden]{display:none}.scanok button{border:0;background:#fff3;color:#fff;border-radius:10px;padding:6px 10px;font:700 13px Onest,sans-serif}
+@keyframes okin{from{transform:translateY(-8px);opacity:0}}#burstBtn[aria-pressed="false"]{opacity:.55}
 .scantop{position:relative;color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 0;font:700 18px Unbounded,sans-serif;letter-spacing:-.02em;text-align:center}
 .scanbot{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px calc(20px + env(safe-area-inset-bottom))}
 .scanbot .btn{background:#ffffffeb;color:#1c1424;min-height:54px;font:600 15px Onest,sans-serif}
@@ -242,7 +244,8 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <video id="vid" playsinline muted></video>
     <div class="frame"></div>
     <div class="scantop" id="scanmsg">Apunta al código de barras</div>
-    <div class="scanbot"><button class="btn snap" id="snapLabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto de la etiqueta del precio</button><button class="btn" id="torch" hidden>Linterna</button><button class="btn" id="scanManual">A mano</button><button class="btn" id="scanClose">Cerrar</button></div>
+    <div class="scanok" id="scanOk" hidden><span id="scanOkTx"></span><button type="button" id="scanUndo">Deshacer</button></div>
+    <div class="scanbot"><button class="btn snap" id="snapLabel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto de la etiqueta del precio</button><button class="btn" id="torch" hidden>Linterna</button><button class="btn" id="burstBtn" aria-pressed="true">Seguidos</button><button class="btn" id="scanManual">A mano</button><button class="btn" id="scanClose">Cerrar</button></div>
   </div>
 
   <section class="shop">
@@ -502,7 +505,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <details><summary>Varias tiendas</summary>
       <ul><li>Arriba, toca el nombre de la tienda para cambiarla o añadir otra.</li><li>Cada tienda tiene su <b>lista</b> y cada producto guarda su <b>precio en cada tienda</b>.</li><li>La lista te dice si en otra tienda te saldría más barata, y puedes <b>pasar productos</b> de una lista a otra.</li></ul></details>
     <details><summary>Lista compartida</summary>
-      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li><li><b>Fotos</b>: si un producto no tiene foto, al abrirlo pulsa <b>📷 Añadir foto</b>. Se guarda para todos los que usan la app.</li><li><b>Gasto de la casa</b>: en la lista compartida activa «Compartir también mis compras». Luego en <b>Tus compras</b> elige «Toda la casa» para ver el gasto de todos y cuánto lleva cada uno este mes.</li></ul></details>
+      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li><li><b>Escanear seguidos</b>: con «Seguidos ✓» en el escáner, los productos que ya tienen precio en esta tienda se añaden solos y la cámara sigue abierta. Si uno es nuevo, se abre la ficha y al guardarla vuelve el escáner.</li><li><b>Fotos</b>: si un producto no tiene foto, al abrirlo pulsa <b>📷 Añadir foto</b>. Se guarda para todos los que usan la app.</li><li><b>Gasto de la casa</b>: en la lista compartida activa «Compartir también mis compras». Luego en <b>Tus compras</b> elige «Toda la casa» para ver el gasto de todos y cuánto lleva cada uno este mes.</li></ul></details>
     <details><summary>Terminar la compra y el ticket</summary>
       <ul><li>¿Se te olvidó apuntar una compra? En <b>Tus compras</b> pulsa <b>Añadir compra con el ticket</b> y sube la foto o el PDF: cuenta en el gasto del mes.</li><li><b>Terminar compra</b> guarda la compra en <b>Tus compras</b>, con el gasto del mes y de la semana.</li><li>Pon lo pagado en caja o pulsa <b>Escanear el ticket de caja</b>: la app compara línea a línea y te avisa si te han cobrado algo de más.</li></ul></details>
     <details><summary>Precios compartidos</summary>
@@ -763,7 +766,7 @@ function openItem(opts){
   $('sItem').classList.add('on');
   if(!opts.busy)setTimeout(()=>$(opts.focus&&opts.code?opts.focus:opts.code&&opts.price==null?'iName':opts.code?'iPrice':opts.focus||'iName').focus(),60);
 }
-function closeItem(){$('sItem').classList.remove('on');editing=null;listLink=null}
+function closeItem(){$('sItem').classList.remove('on');editing=null;listLink=null;resumeScan=false}
 function setMode(m){mode=m;$('mUnit').classList.toggle('on',m==='unit');$('mKg').classList.toggle('on',m==='kg');$('unitF').hidden=m==='kg';$('kgF').hidden=m!=='kg';calc()}
 $('mUnit').onclick=()=>setMode('unit');
 $('mKg').onclick=()=>{setMode('kg');$('iKg').focus()};
@@ -887,7 +890,7 @@ async function startScan(target){
   try{tr.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}
   if(!det&&'BarcodeDetector' in window){try{const f=await BarcodeDetector.getSupportedFormats();if(f.includes('ean_13'))det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','itf'].filter(x=>f.includes(x))})}catch(e){}}
   if(!det&&!mfr&&window.ZXing){const h=new Map(),F=ZXing.BarcodeFormat;h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.CODE_128,F.ITF]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);mfr=new ZXing.MultiFormatReader();mfr.setHints(h)}
-  $('snapLabel').hidden=scanTarget==='code';
+  $('snapLabel').hidden=scanTarget==='code';$('burstBtn').hidden=scanTarget==='code';renderBurst();$('scanOk').hidden=true;
   $('scanmsg').textContent=scanTarget==='code'?'Apunta al código de barras':'Apunta al código de barras, o haz foto a la etiqueta del precio';
   tick();
 }
@@ -900,9 +903,27 @@ async function readFrame(){
   cx.drawImage(v,(w-cw)/2,(h-ch)/2,cw,ch,0,0,cv.width,cv.height);
   try{const src=new ZXing.HTMLCanvasElementLuminanceSource(cv);return mfr.decodeWithState(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src))).getText()}catch(e){return null}
 }
+/* modo «seguidos»: los productos con precio conocido en esta tienda se añaden sin cerrar el escáner */
+let burst=load('cart.burst',true),resumeScan=false,lastCode='',lastCodeT=0,okT=null,lastAdd=null;
+function renderBurst(){$('burstBtn').setAttribute('aria-pressed',burst);$('burstBtn').textContent=burst?'Seguidos ✓':'Seguidos'}
+function quickAdd(code){const k=known[code],pf=priceFor(k);if(!k||k.mode==='kg'||!pf||!pf.here||isScale(code))return false;
+  const price=pf.p,name=k.name||'Artículo';let it=items.find(i=>i.code===code&&i.price===price&&i.mode!=='kg'),made=false;
+  if(it)it.qty++;else{it={id:Date.now().toString(36),code,name,mode:'unit',price,offer:'',qty:1};items.push(it);made=true}
+  const li=cur().find(x=>!x.done&&(x.code===code||norm(x.name)===norm(name)));if(li){li.done=true;li.cartId=it.id;li.code=code;li.price=price}
+  lastAdd={id:it.id,made,li:li&&li.id};save();render();
+  $('scanOkTx').textContent='✓ '+name+' · '+eur.format(price)+(it.qty>1?' (×'+it.qty+')':'')+(li?' · tachado':'');$('scanOk').hidden=false;clearTimeout(okT);okT=setTimeout(()=>$('scanOk').hidden=true,3500);
+  $('scanmsg').textContent='Total: '+eur.format(cartTotal())+' · sigue escaneando';return true}
+$('scanUndo').onclick=()=>{if(!lastAdd)return;const it=items.find(i=>i.id===lastAdd.id);if(it){if(lastAdd.made||it.qty<=1)items=items.filter(i=>i!==it);else it.qty--}
+  if(lastAdd.li){const li=shop.find(x=>x.id===lastAdd.li);if(li&&(!it||lastAdd.made)){li.done=false;li.cartId=null}}lastAdd=null;save();render();$('scanOk').hidden=true;$('scanmsg').textContent='Deshecho · Total: '+eur.format(cartTotal())};
+$('burstBtn').onclick=()=>{burst=!burst;put('cart.burst',burst);renderBurst();toast(burst?'Escaneo seguido: los productos conocidos se añaden solos':'Escaneo de uno en uno')};
 async function tick(){
   if(!stream)return;
   const code=await readFrame();
+  if(code&&stream&&burst&&scanTarget!=='code'){
+    if(code===lastCode&&Date.now()-lastCodeT<2500){timer=setTimeout(tick,det?120:200);return}
+    lastCode=code;lastCodeT=Date.now();
+    if(quickAdd(code)){try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}timer=setTimeout(tick,600);return}
+    try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}stopScan();resumeScan=true;prefillFromCode(code);return}
   if(code&&stream){try{navigator.vibrate&&navigator.vibrate(80)}catch(e){}const tg=scanTarget;stopScan();if(tg==='code')fillCode(code);else prefillFromCode(code);return}
   timer=setTimeout(tick,det?120:200);
 }
@@ -1119,7 +1140,7 @@ $('fItem').onsubmit=e=>{
     const li=listLink?shop.find(x=>x.id===listLink):cur().find(x=>!x.done&&(code&&x.code===code||name&&norm(x.name)===norm(name)));
     if(li){li.done=true;li.cartId=newId;if(code&&!isScale(code)&&/^\d{8,14}$/.test(code))li.code=code;if(rec.mode==='unit')li.price=rec.price;else{li.price=r2(rec.price/li.qty);}msg+=' · tachado de la lista'}
   }
-  toast(msg);save();render();closeItem();
+  const rs=resumeScan;toast(msg);save();render();closeItem();if(rs&&burst)setTimeout(()=>startScan(),350);
 };
 
 $('list').onclick=e=>{
