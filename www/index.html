@@ -253,7 +253,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </section>
 
   <section class="hist">
-    <div class="shead"><div><b>Tus compras</b><span id="histSum">Cuando termines una compra, aparecerá aquí</span></div></div>
+    <div class="shead shop-h"><div><b>Tus compras</b><span id="histSum">Cuando termines una compra, aparecerá aquí</span></div><div class="acts"><button class="act" id="histAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir compra con el ticket</button></div></div>
     <div class="bars" id="histBars"></div>
     <ul id="histUl"></ul>
   </section>
@@ -365,6 +365,22 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </form>
 </div>
 
+<div class="scrim" id="sNewTk" role="dialog" aria-modal="true" aria-labelledby="tNewTk">
+  <div class="sheet">
+    <h2 id="tNewTk">Añadir compra con el ticket</h2>
+    <p>Para las compras que no apuntaste en la app: se guarda en «Tus compras» y cuenta en el gasto del mes.</p>
+    <label>Tienda</label>
+    <div class="storelist" id="ntStores"></div>
+    <input id="ntStore" autocomplete="off" placeholder="Otra tienda (escríbela)" style="margin-top:6px">
+    <label for="ntDate">Fecha</label>
+    <input id="ntDate" type="date">
+    <div class="two" style="margin-top:12px"><button type="button" class="btn ghost photo" id="ntCamBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto del ticket</button><button type="button" class="btn ghost photo" id="ntPdfBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 11v6m-3-3 3 3 3-3"/></svg>PDF del ticket</button></div>
+    <input type="file" id="ntCam" accept="image/*" capture="environment" hidden>
+    <input type="file" id="ntPdf" accept="application/pdf,.pdf" hidden>
+    <div id="ntRes"></div>
+    <div class="sbtns"><button type="button" class="btn ghost" id="ntNo">Cancelar</button><button type="button" class="btn primary" id="ntSave" hidden>Guardar compra</button></div>
+  </div>
+</div>
 <div class="scrim" id="sTkH" role="dialog" aria-modal="true" aria-labelledby="tTkH">
   <div class="sheet">
     <h2 id="tTkH">Comprobar con el ticket</h2>
@@ -449,7 +465,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <details><summary>Lista compartida</summary>
       <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li></ul></details>
     <details><summary>Terminar la compra y el ticket</summary>
-      <ul><li><b>Terminar compra</b> guarda la compra en <b>Tus compras</b>, con el gasto del mes y de la semana.</li><li>Pon lo pagado en caja o pulsa <b>Escanear el ticket de caja</b>: la app compara línea a línea y te avisa si te han cobrado algo de más.</li></ul></details>
+      <ul><li>¿Se te olvidó apuntar una compra? En <b>Tus compras</b> pulsa <b>Añadir compra con el ticket</b> y sube la foto o el PDF: cuenta en el gasto del mes.</li><li><b>Terminar compra</b> guarda la compra en <b>Tus compras</b>, con el gasto del mes y de la semana.</li><li>Pon lo pagado en caja o pulsa <b>Escanear el ticket de caja</b>: la app compara línea a línea y te avisa si te han cobrado algo de más.</li></ul></details>
     <details><summary>Precios compartidos</summary>
       <p>Cada precio que guardas <b>escaneando un código</b> se comparte de forma anónima (producto, tienda, precio y fecha) para que otros usuarios lo vean al escanear. Tu precio siempre tiene prioridad.</p></details>
     <details><summary>Sin cobertura</summary>
@@ -1388,7 +1404,7 @@ function parseTicketPdf(text){
   const split=n=>{const m=n.match(/^(.+?)\s+((?=[A-Z0-9]*\d)[A-Z0-9]{4})$/);return m?{name:m[1],code:m[2]}:{name:n,code:''}};
   for(let t of String(text).split('\n')){t=t.replace(/[\x00-\x1f]/g,'').replace(/\s+/g,' ').trim();if(!t)continue;
     let m;
-    if(/total a pagar/i.test(t)){m=t.match(/(-?\d+[,.]\d{2})$/);if(m)total=money(m[1]);break}
+    if(/total a pagar/i.test(t)||/^total\b(?!.*ventaj)/i.test(t)){m=t.match(/(-?\d+[,.]\d{2})\s*€?$/);if(m){total=money(m[1]);break}continue}
     if(/^[=*\-_╔╚═]{5,}/.test(t))continue;
     if(/^subtotal/i.test(t)){m=t.match(/(\d+[,.]\d{2})$/);if(m)sub=money(m[1]);after=true;pend=null;continue}
     if(after){m=t.match(/^(.*?)\s*(-\d+[,.]\d{2})$/);if(m)gdisc.push({name:m[1].replace(/^dto\.?\s*/i,'').trim()||'Descuento',amount:money(m[2])});continue}
@@ -1396,8 +1412,13 @@ function parseTicketPdf(text){
     if(m=t.match(/^(.*?)\s*(-\d+[,.]\d{2})$/)){const c=(m[1].match(/\s((?=[A-Z0-9]*\d)[A-Z0-9]{4})$/)||[])[1];
       const tg=(c&&[...out].reverse().find(l=>l.code===c))||out[out.length-1];
       if(tg){const d=money(m[2]);tg.amount=r2(tg.amount+d);tg.dsc=r2((tg.dsc||0)+d)}continue}
-    if(m=t.match(/^(.+?)\s+(\d+[,.]\d{2})$/)){pend=null;if(TK_SKIP.test(t)||!/[a-zñ]{3,}/i.test(m[1]))continue;out.push({...split(m[1]),qty:1,amount:money(m[2]),dsc:0});continue}
-    if(/[a-zñ]{3,}/i.test(t)&&!TK_SKIP.test(t)&&!/^\d/.test(t))pend={...split(t),dsc:0};else pend=null}
+    /* producto al peso: «PLATANO» y debajo «0,850 kg 1,99 €/kg 1,69» */
+    if(pend&&(m=t.match(/(-?\d+[,.]\d{2})\s*€?$/))&&!/[a-zñ]{3,}/i.test(t.replace(/eur|kg|€/gi,''))){out.push({...pend,qty:1,amount:money(m[1])});pend=null;continue}
+    if(m=t.match(/^(.+?)\s+(\d+[,.]\d{2})\s*€?$/)){pend=null;if(TK_SKIP.test(t)||!/[a-zñ]{3,}/i.test(m[1]))continue;
+      /* «2 PAN BARRA 0,55 1,10»: cantidad delante y precio unitario antes del importe */
+      let nm=m[1],q=1;const qm=nm.match(/^(\d{1,2})\s+(?=\D)/);if(qm){q=+qm[1];nm=nm.slice(qm[0].length)}nm=nm.replace(/\s+\d+[,.]\d{2}\s*€?$/,'');
+      out.push({...split(nm),qty:q,amount:money(m[2]),dsc:0});continue}
+    if(/[a-zñ]{3,}/i.test(t)&&!TK_SKIP.test(t)&&(!/^\d/.test(t)||/^\d{1,2}\s+[a-zñ]{3,}/i.test(t)))pend={...split(t.replace(/^\d{1,2}\s+(?=[a-zñ])/i,'')),dsc:0};else pend=null}
   for(const l of out)l.disc=false;
   return {lines:out,total,sub,gdisc}}
 function loadPdf(){if(window.pdfjsLib)return Promise.resolve();return new Promise((ok,ko)=>{const t=document.createElement('script');t.src='pdf/pdf.min.js';t.onload=ok;t.onerror=ko;document.head.appendChild(t)})}
@@ -1420,6 +1441,49 @@ async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.tex
   catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
   finally{btn.disabled=false;btn.lastChild.textContent=label}}
 window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t)};
+/* ---- añadir una compra pasada desde el ticket (foto o PDF), para llevar el gasto del mes ---- */
+let nt=null,ntSel='';
+function tkDate(text){const m=String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;const d=new Date(y,+m[2]-1,+m[1],12);return isNaN(d)||d>Date.now()+864e5||y<2020?null:d}
+const isoDay=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function openNewTicket(){fixStores();nt=null;$('ntRes').innerHTML='';$('ntSave').hidden=true;
+  $('ntStores').innerHTML=stores.map(x=>`<button type="button" data-s="${esc(x)}" class="${x===store?'on':''}"><span>${esc(x)}</span></button>`).join('');
+  ntSel=store;$('ntStore').value='';$('ntDate').value=isoDay(new Date());$('sNewTk').classList.add('on')}
+$('ntStore').oninput=()=>{if($('ntStore').value.trim())[...$('ntStores').children].forEach(x=>x.classList.remove('on'))};
+$('ntStores').onclick=e=>{const b=e.target.closest('button');if(!b)return;ntSel=b.dataset.s;$('ntStore').value='';[...$('ntStores').children].forEach(x=>x.classList.toggle('on',x===b))};
+function ntShow(r,text){
+  const lines=r.lines.filter(l=>!l.disc),its=lines.map(l=>[l.name.toLowerCase().replace(/^./,c=>c.toUpperCase()),l.amount,l.qty||1]);
+  /* descuentos sueltos (sin producto) restan del total */
+  const loose=r2(r.lines.filter(l=>l.disc).reduce((a,l)=>a+l.amount,0));
+  const sum=r2(its.reduce((a,i)=>a+i[1],0)+loose),sub=r.sub!=null?r.sub:sum,paid=r.total!=null?r.total:null;
+  const d=tkDate(text);if(d)$('ntDate').value=isoDay(d);
+  nt={items:its,total:sub,paid,saved:r2(-r.lines.reduce((a,l)=>a+(l.dsc||0),0)-loose)};
+  const n=its.reduce((a,i)=>a+i[2],0),off=r.sub!=null?Math.abs(sum-r.sub)>=0.02:paid!=null&&Math.abs(sum-paid)>=0.02;
+  let h='<div class="tk">';
+  h+=`<div class="r"><span>${n} ${n===1?'artículo':'artículos'}<small>${paid!=null&&Math.abs(paid-sub)>=0.01?'Productos '+eur.format(sub)+' · pagado '+eur.format(paid):'Total del ticket'}</small></span><b>${eur.format(paid!=null?paid:sub)}</b></div>`;
+  if(off)h+=`<div class="r bad"><span>Las líneas leídas suman ${eur.format(sum)}<small>Puede faltar alguna línea. Se guardará el total del ticket.</small></span></div>`;
+  h+=`<details><summary style="padding:8px 0;cursor:pointer;font-weight:600">Ver los artículos</summary><div class="hdet" style="padding:0">${its.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}</div></details></div>`;
+  $('ntRes').innerHTML=h;$('ntSave').hidden=false}
+function ntFail(msg){$('ntRes').innerHTML=`<div class="tk"><div class="r bad"><span>${msg}</span></div></div>`;$('ntSave').hidden=true}
+$('ntPdfBtn').onclick=()=>{$('ntPdf').value='';$('ntPdf').click()};
+$('ntPdf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntPdfBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el PDF…';
+  try{const text=await pdfText(f);if(!text.trim())return ntFail('Este PDF es una imagen, sin texto. Usa «Foto del ticket».');
+    let r=parseTicketPdf(text);if(!r.lines.length)r={...parseReceipt(pdfFix(text)),sub:null,gdisc:[]};
+    if(!r.lines.length&&r.total==null)return ntFail('No encuentro líneas con precio en este PDF.');ntShow(r,text)}
+  catch(err){ntFail('No he podido abrir ese PDF.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
+$('ntCamBtn').onclick=()=>{$('ntCam').value='';$('ntCam').click()};
+$('ntCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntCamBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar)';
+  try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
+    const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});URL.revokeObjectURL(url);
+    const r={...parseReceipt(data.text),sub:null,gdisc:[]};if(!r.lines.length&&r.total==null)return ntFail('No he podido leer el ticket. Ponlo plano, con luz y que se vea entero.');ntShow(r,data.text)}
+  catch(err){ntFail('No he podido leer el ticket. La primera vez necesita conexión.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
+$('ntSave').onclick=()=>{if(!nt)return;const st0=$('ntStore').value.trim().replace(/\s+/g,' ')||ntSel||store,ex=stores.find(x=>norm(x)===norm(st0)),st=ex||st0;if(!ex)stores.push(st);
+  const dv=$('ntDate').value,d=dv?new Date(dv+'T12:00:00'):new Date(),t=isNaN(d)?Date.now():d.getTime(),amount=nt.paid!=null?nt.paid:nt.total;
+  const dup=history.find(h=>h.store===st&&Math.abs(spent(h)-amount)<0.01&&new Date(h.t).toDateString()===new Date(t).toDateString());
+  const go=()=>{history.push({id:Date.now().toString(36),t,store:st,total:nt.total,paid:nt.paid,saved:Math.max(0,nt.saved||0),items:nt.items,src:'ticket'});history.sort((a,b)=>b.t-a.t);
+    save();renderHistory();$('sNewTk').classList.remove('on');toast('Compra añadida: '+eur.format(amount)+' en '+st)};
+  if(dup)ask({title:'¿Ya la tenías?',text:'Ya hay una compra de '+eur.format(amount)+' en '+st+' ese día. ¿La añado igualmente?',ok:'Añadir'},go);else go()};
+$('ntNo').onclick=()=>$('sNewTk').classList.remove('on');
+$('histAdd').onclick=openNewTicket;
 $('tkPdfBtn').onclick=()=>{$('tkPdfIn').value='';$('tkPdfIn').click()};
 $('tkPdfIn').onchange=e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;readPdfTicket(f,$('tkPdfBtn'),'Subir otro PDF del ticket')};
 $('histUl').addEventListener('click',e=>{const b=e.target.closest('[data-tkh]');if(!b)return;const h=history.find(x=>x.id===b.dataset.tkh);if(!h)return;
