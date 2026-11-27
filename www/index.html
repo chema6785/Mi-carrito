@@ -50,6 +50,7 @@ button{font-family:inherit}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
 .act{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 9px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 5%,var(--paper));color:var(--ink);font:600 14px/1.1 Onest,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
 .shead .act span{color:inherit;font-size:inherit}
+.padd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:26px;border:2px dashed var(--line)!important;background:transparent!important;color:var(--mute)}.padd small{font-size:11px;font-weight:600}
 .rises{margin:8px 18px 14px}.rises summary{cursor:pointer;font-weight:600;padding:6px 0}.rises small{color:var(--mute)}
 .seg{display:flex;margin:0 18px 10px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--paper))}.seg[hidden]{display:none}
 .seg button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:var(--mute);font:600 14px Onest,sans-serif;cursor:pointer}.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #0002}
@@ -492,7 +493,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <details><summary>Varias tiendas</summary>
       <ul><li>Arriba, toca el nombre de la tienda para cambiarla o añadir otra.</li><li>Cada tienda tiene su <b>lista</b> y cada producto guarda su <b>precio en cada tienda</b>.</li><li>La lista te dice si en otra tienda te saldría más barata, y puedes <b>pasar productos</b> de una lista a otra.</li></ul></details>
     <details><summary>Lista compartida</summary>
-      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li><li><b>Gasto de la casa</b>: en la lista compartida activa «Compartir también mis compras». Luego en <b>Tus compras</b> elige «Toda la casa» para ver el gasto de todos y cuánto lleva cada uno este mes.</li></ul></details>
+      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li><li><b>Fotos</b>: si un producto no tiene foto, al abrirlo pulsa <b>📷 Añadir foto</b>. Se guarda para todos los que usan la app.</li><li><b>Gasto de la casa</b>: en la lista compartida activa «Compartir también mis compras». Luego en <b>Tus compras</b> elige «Toda la casa» para ver el gasto de todos y cuánto lleva cada uno este mes.</li></ul></details>
     <details><summary>Terminar la compra y el ticket</summary>
       <ul><li>¿Se te olvidó apuntar una compra? En <b>Tus compras</b> pulsa <b>Añadir compra con el ticket</b> y sube la foto o el PDF: cuenta en el gasto del mes.</li><li><b>Terminar compra</b> guarda la compra en <b>Tus compras</b>, con el gasto del mes y de la semana.</li><li>Pon lo pagado en caja o pulsa <b>Escanear el ticket de caja</b>: la app compara línea a línea y te avisa si te han cobrado algo de más.</li></ul></details>
     <details><summary>Precios compartidos</summary>
@@ -615,20 +616,42 @@ function offFetch(code,cb){if(!code||!/^\d{8,14}$/.test(code)||isScale(code)||of
   offQ.add(code);const go=async()=>{offBusy++;try{const j=await getJSON('https://world.openfoodfacts.org/api/v2/product/'+code+'.json?fields=image_front_small_url,nutriscore_grade,nova_group,allergens_tags');
     if(j&&j.status===1)offSave(code,j.product);else if(j&&j.status===0){offc[code]={img:'',t:Date.now()};put('cart.offc',offc)}cb&&cb()}finally{offBusy--;offQ.delete(code)}};
   setTimeout(go,offBusy*400)}
+/* ---- fotos propias: para los productos sin foto en Open Food Facts (o metidos a mano), las hace el usuario y se comparten ---- */
+const slugK=n=>norm(n||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ñ/g,'n').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);
+function photoKey(code,name){if(code&&/^\d{8,14}$/.test(code)&&!isScale(code))return code;const k=slugK(name);return k.length>=3?'n-'+k:''}
+const photoBase=()=>SB_URL+'/storage/v1/object/public/fotos/';
+function photoOf(code,name){const c=code&&offc[code];if(c&&c.img)return c.img;const k=photoKey(code,name);const o=k&&offc[k];return o&&o.img||''}
+const phQ=new Set();let phT=null;
+function photoLookup(code,name,cb){const k=photoKey(code,name);if(!k)return;const o=offc[k];if(o&&(o.img||Date.now()-(o.pt||0)<3*864e5))return;
+  if(/^\d/.test(k)&&!(o&&o.t))return; /* con código: primero Open Food Facts */
+  phQ.add(k);clearTimeout(phT);phT=setTimeout(async()=>{const ks=[...phQ].slice(0,60);ks.forEach(x=>phQ.delete(x));if(!ks.length||!sbOn()||!navigator.onLine)return;
+    let r=null;try{r=await sbRpc('get_photos',{p_keys:ks})}catch(e){return}const got={};for(const x of r||[])got[x.key]=x.path;
+    for(const x of ks){offc[x]={...(offc[x]||{}),pt:Date.now(),t:(offc[x]&&offc[x].t)||Date.now()};if(got[x])offc[x].img=photoBase()+got[x]}put('cart.offc',offc);cb&&cb()},400)}
+async function shrinkJpeg(file,max){const url=URL.createObjectURL(file);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
+  const sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)),c=document.createElement('canvas');c.width=Math.round(img.naturalWidth*sc);c.height=Math.round(img.naturalHeight*sc);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);return await new Promise(ok=>c.toBlob(ok,'image/jpeg',.82))}
+async function uploadPhoto(file,code,name){const k=photoKey(code,name);if(!k)throw new Error('Pon primero el nombre del producto');
+  const blob=await shrinkJpeg(file,640),path=k+'-'+Date.now().toString(36)+'.jpg';
+  const h={'Content-Type':'image/jpeg',apikey:SB_KEY,'x-upsert':'false'};if(!SB_KEY.startsWith('sb_'))h.Authorization='Bearer '+SB_KEY;
+  const r=await fetch(SB_URL+'/storage/v1/object/fotos/'+path,{method:'POST',headers:h,body:blob});if(!r.ok)throw new Error('subida '+r.status);
+  await sbRpc('add_photo',{p_key:k,p_path:path,p_device:device});offc[k]={...(offc[k]||{}),img:photoBase()+path,pt:Date.now(),t:Date.now()};
+  if(code&&k===code)offc[code].img=photoBase()+path;put('cart.offc',offc);return photoBase()+path}
 function healthHTML(o){if(!o)return '';const b=[];
   if(/^[a-e]$/.test(o.ns||''))b.push(`<span class="ns ${o.ns}" title="Nutri-Score">${o.ns.toUpperCase()}</span>`);
   if(o.nova)b.push(`<span class="chip2${o.nova==4?' bad':''}">${o.nova==4?'Ultraprocesado':o.nova==3?'Procesado':o.nova==2?'Ingrediente culinario':'Sin procesar'}</span>`);
   if(o.al&&o.al.length)b.push(`<span class="chip2">Alérgenos: ${esc(o.al.join(', '))}</span>`);
   return b.length?`<div class="badges">${b.join('')}</div>`:''}
 function renderInfo(){
-  const name=$('iName').value.trim(),code=$('iCode').value.trim()||codeFor(name)||'',o=offc[code];if(code&&!o)offFetch(code,renderInfo);
+  const name=$('iName').value.trim(),code=$('iCode').value.trim()||codeFor(name)||'',o0=offc[code];if(code&&!o0)offFetch(code,renderInfo);
+  const ph=photoOf(code,name);if(!ph&&(code||name))photoLookup(code,name,renderInfo);const o=ph?{...(o0||{}),img:ph}:o0;
   const p=mode==='kg'?parseMoney($('iKg').value):parseMoney($('iPrice').value);
   const h=histFor(name,code),last=(h.filter(x=>x[2]===store).slice(-1)[0])||h[h.length-1];
   let hp='';
   if(last){hp=`<div class="spark">${sparkSVG(h.slice(-12))}<span>Última vez ${eur.format(last[1])}${mode==='kg'?'/kg':''} (${fdm(last[0])}${last[2]!==store?', '+esc(last[2]):''})${!isNaN(p)?' · '+priceDelta(p,last[1]):''}</span></div>`}
   const img=o&&o.img?`<button type="button" class="pimg" data-big="${esc(o.img)}" aria-label="Ver la foto en grande"><img src="${esc(o.img.replace('.200.','.400.'))}" alt="" onerror="this.src='${esc(o.img)}'"></button>`:'';
   const hh=healthHTML(o);
-  $('pinfo').innerHTML=img||hh||hp?`${img}<div class="pi">${hh}${hp}</div>`:'';
+  const add=!img&&(name.length>=3||/^\d{8,14}$/.test(code))&&sbOn()?`<button type="button" class="pimg padd" id="pAdd" aria-label="Añadir foto del producto">📷<small>Añadir foto</small></button>`:'';
+  $('pinfo').innerHTML=img||add||hh||hp?`${img||add}<div class="pi">${hh}${hp}</div>`:'';
 }
 let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=null;
 
@@ -657,7 +680,7 @@ function render(){
     $('blabel').textContent='';$('setBudget').textContent='Límite '+eur.format(budget);
   }else{m.hidden=true;$('left').textContent='';$('blabel').textContent='';$('setBudget').textContent='Poner límite'}
   $('list').innerHTML=items.length?items.slice().reverse().map(i=>`<li data-id="${esc(i.id)}" class="${i.id===newId?'new':''}">
-    <div class="nmrow">${i.code&&offc[i.code]&&offc[i.code].img?`<img class="thumb" src="${esc(offc[i.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}${i.code&&offc[i.code]&&/^[a-e]$/.test(offc[i.code].ns||'')?` · Nutri-Score <span class="ns ${offc[i.code].ns} nsm" style="vertical-align:middle">${offc[i.code].ns.toUpperCase()}</span>`:''}${i.prev!=null?' · '+priceDelta(i.mode==='kg'?i.perKg:i.price,i.prev):''}</div></div></div>
+    <div class="nmrow">${photoOf(i.code,i.name)?`<img class="thumb" src="${esc(photoOf(i.code,i.name))}" alt="" loading="lazy" onerror="this.remove()">`:''}<div><div class="nm">${esc(i.name||'Artículo sin nombre')}</div><div class="cd">${i.code?esc(i.code):'Sin código'}${i.code&&offc[i.code]&&/^[a-e]$/.test(offc[i.code].ns||'')?` · Nutri-Score <span class="ns ${offc[i.code].ns} nsm" style="vertical-align:middle">${offc[i.code].ns.toUpperCase()}</span>`:''}${i.prev!=null?' · '+priceDelta(i.mode==='kg'?i.perKg:i.price,i.prev):''}</div></div></div>
     <div class="pr">${eur.format(lineTotal(i))}</div>
     <div class="row2"><span class="unit">${i.scale?'<span class="tag">Báscula</span>':''}${i.mode==='kg'?(i.qty>1?i.qty+' × ':'')+fkg(i.grams)+' × '+eur.format(i.perKg)+'/kg':i.qty+' × '+eur.format(i.price)} ${offerTag(i)}</span>
       <button class="ico" data-a="minus" aria-label="Quitar una unidad">−</button><span class="qty">${i.qty}</span>
@@ -667,7 +690,7 @@ function render(){
     :'<li class="empty"><b>Carrito vacío</b>Pulsa Escanear y apunta al primer código de barras.</li>';
   newId=null;
   renderShop();renderStore();renderHistory();
-  for(const i of items)if(i.code&&!offc[i.code])offFetch(i.code,()=>render());
+  for(const i of items){if(i.code&&!offc[i.code])offFetch(i.code,()=>render());if(!photoOf(i.code,i.name))photoLookup(i.code,i.name,()=>render())}
 }
 
 /* habituales: tus tickets de Carrefour + todo lo que has comprado en la app o añadido con ticket, de más a menos veces */
@@ -1123,9 +1146,9 @@ function renderShop(){
   const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
   $('editTx').textContent=L.length?'Editar':'Preparar';
-  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><div class="swbg" aria-hidden="true">Quitar</div><div class="slin"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span>${x.code&&offc[x.code]&&/^[a-e]$/.test(offc[x.code].ns||'')?`<span class="ns ${offc[x.code].ns} nsm" title="Nutri-Score">${offc[x.code].ns.toUpperCase()}</span>`:''}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></div></li>`;
+  const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><div class="swbg" aria-hidden="true">Quitar</div><div class="slin"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${photoOf(x.code,x.name)?`<img class="thumb" src="${esc(photoOf(x.code,x.name))}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span>${x.code&&offc[x.code]&&/^[a-e]$/.test(offc[x.code].ns||'')?`<span class="ns ${offc[x.code].ns} nsm" title="Nutri-Score">${offc[x.code].ns.toUpperCase()}</span>`:''}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></div></li>`;
   if(L.length&&!load('cart.swipehint',false)){put('cart.swipehint',true);setTimeout(()=>toast('Consejo: desliza un producto hacia la izquierda para quitarlo de la lista'),1200)}
-  for(const x of L){if(!x.code){const c=codeFor(x.name);if(c)x.code=c}if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop())}
+  for(const x of L){if(!x.code){const c=codeFor(x.name);if(c)x.code=c}if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop());if(!photoOf(x.code,x.name))photoLookup(x.code,x.name,()=>renderShop())}
   const groups={};for(const x of L)(groups[aisleOf(x.name)]=groups[aisleOf(x.name)]||[]).push(x);
   const multi=Object.keys(groups).length>1;
   $('shopUl').innerHTML=L.length?AISLE_ORDER.filter(a=>groups[a]).map(a=>(multi?`<li class="aisle">${esc(a)}</li>`:'')+groups[a].map(row).join('')).join('')
@@ -1541,6 +1564,10 @@ $('ntPdf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('
     let r=parseTicketPdf(text);if(!r.lines.length)r={...parseReceipt(pdfFix(text)),sub:null,gdisc:[]};
     if(!r.lines.length&&r.total==null)return ntFail('No encuentro líneas con precio en este PDF.');ntShow(r,text)}
   catch(err){ntFail('No he podido abrir ese PDF.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
+document.body.insertAdjacentHTML('beforeend','<input type="file" id="pAddIn" accept="image/*" capture="environment" hidden>');
+document.addEventListener('click',e=>{if(e.target.closest('#pAdd')){$('pAddIn').value='';$('pAddIn').click()}});
+$('pAddIn').onchange=async e=>{const f=e.target.files[0];if(!f)return;const name=$('iName').value.trim(),code=$('iCode').value.trim()||codeFor(name)||'';
+  toast('Subiendo la foto…');try{await uploadPhoto(f,code,name);renderInfo();render();renderShop();toast('Foto guardada: la verán también los demás')}catch(err){logErr('foto',err&&err.message||err);toast('No he podido subir la foto'+(navigator.onLine?'':' (sin conexión)'))}};
 $('ntCamBtn').onclick=()=>{$('ntCam').value='';$('ntCam').click()};
 $('ntCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntCamBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar)';
   try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
