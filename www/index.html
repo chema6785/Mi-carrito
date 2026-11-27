@@ -51,6 +51,7 @@ button{font-family:inherit}
 .act{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 9px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 5%,var(--paper));color:var(--ink);font:600 14px/1.1 Onest,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
 .shead .act span{color:inherit;font-size:inherit}
 .padd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:26px;border:2px dashed var(--line)!important;background:transparent!important;color:var(--mute)}.padd small{font-size:11px;font-weight:600}
+.cmpcard{border:1px solid var(--line);border-radius:14px;padding:4px 12px;margin:8px 0}.cmpcard.best{border-color:var(--ok)}.cmpcard summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;padding:8px 0;list-style:none}.cmpcard summary small{display:block;color:var(--mute);font-size:12px;font-weight:400}.better{color:var(--ok)}.worse{color:var(--warn)}
 .rises{margin:8px 18px 14px}.rises summary{cursor:pointer;font-weight:600;padding:6px 0}.rises small{color:var(--mute)}
 .seg{display:flex;margin:0 18px 10px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--paper))}.seg[hidden]{display:none}
 .seg button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:var(--mute);font:600 14px Onest,sans-serif;cursor:pointer}.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #0002}
@@ -245,7 +246,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><div class="acts"><button class="act" id="editList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg><span id="editTx">Editar</span></button><button class="act" id="micMain" aria-label="Añadir a la lista hablando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Dictar</button><button class="act" id="shareList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span id="shareTx">Compartir</span></button></div></div>
+    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><div class="acts"><button class="act" id="cmpBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v16M7 20h10M5 8h14"/><path d="m5 8-3 6a3 3 0 0 0 6 0zM19 8l-3 6a3 3 0 0 0 6 0z"/></svg>Comparar</button><button class="act" id="editList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg><span id="editTx">Editar</span></button><button class="act" id="micMain" aria-label="Añadir a la lista hablando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Dictar</button><button class="act" id="shareList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span id="shareTx">Compartir</span></button></div></div>
     <div class="due" id="shopDue"></div>
     <div class="cmp" id="shopCmp"></div>
     <ul id="shopUl"></ul>
@@ -388,6 +389,13 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     </div>
     <p style="font-size:13px;color:var(--mute);margin-top:12px">Solo se usa tu nombre, correo y foto para identificarte. <a href="privacidad.html" target="_blank" rel="noopener" style="color:inherit">Política de privacidad</a></p>
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="accClose">Cerrar</button></div>
+  </div>
+</div>
+<div class="scrim" id="sCmp" role="dialog" aria-modal="true" aria-labelledby="tCmp">
+  <div class="sheet">
+    <h2 id="tCmp">¿Dónde te sale más barata?</h2>
+    <div id="cmpBody"></div>
+    <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="cmpClose">Cerrar</button></div>
   </div>
 </div>
 <div class="scrim" id="sNewTk" role="dialog" aria-modal="true" aria-labelledby="tNewTk">
@@ -1182,12 +1190,39 @@ function aisleOf(n){const t=' '+n.toLowerCase()+' ';for(const [a,r] of AISLE_RUL
 /* ---- precio de la lista en otras tiendas ---- */
 function priceAtItem(x,st){if(x.code&&known[x.code]){const k=known[x.code];if(k.prices&&k.prices[st])return k.prices[st].p;if(!k.prices&&st==='Carrefour'&&k.price!=null)return k.price}return priceAt(x.name,st)}
 function renderCompare(L){
-  const others=stores.filter(x=>x!==store),out=[];
+  const others=cmpStores(L).filter(x=>x!==store),out=[];if(!shpBusy)fetchShared(L).then(ch=>{if(ch)renderShop()});
   if(L.length>=2)for(const st of others){let a=0,b=0,n=0;
-    for(const x of L){const p1=priceAtItem(x,store)??x.price,p2=priceAtItem(x,st);if(p1==null||p2==null)continue;a+=p1*(x.qty||1);b+=p2*(x.qty||1);n++}
+    for(const x of L){const a1=priceAny(x,store),a2=priceAny(x,st),p1=a1?a1.p:x.price,p2=a2?a2.p:null;if(p1==null||p2==null)continue;a+=p1*(x.qty||1);b+=p2*(x.qty||1);n++}
     if(n>=2)out.push({st,diff:r2(b-a),n,b:r2(b)})}
   $('shopCmp').innerHTML=out.length?out.map(o=>`<div><span>En <b>${esc(o.st)}</b> ${o.diff<-0.009?`<span class="better">ahorrarías ${eur.format(-o.diff)}</span>`:o.diff>0.009?`pagarías ${eur.format(o.diff)} más`:'cuesta lo mismo'} <small>(${o.n} de ${L.length} con precio en las dos)</small></span>${o.diff<-0.009?`<button type="button" class="linkbtn" data-cmp="${esc(o.st)}">Pasar ahí</button>`:''}</div>`).join(''):'';
 }
+/* ---- comparar tiendas: cuánto costaría la lista en cada súper, con tus precios y los compartidos ---- */
+let shp=load('cart.shp',{}),shpBusy=false;
+function sharedPrice(x,st){const k=shareKey(x.code||'',x.name);const o=k&&shp[k];if(!o||!o.s)return null;const e=Object.entries(o.s).find(([s])=>norm(s)===norm(st));return e&&e[1].u!=='kg'?e[1].p:null}
+function priceAny(x,st){const p=priceAtItem(x,st);if(p!=null)return {p,src:'tuyo'};const q=sharedPrice(x,st);return q!=null?{p:q,src:'compartido'}:null}
+async function fetchShared(L){if(shpBusy||!sbOn()||!navigator.onLine)return false;const keys=[...new Set(L.map(x=>shareKey(x.code||'',x.name)).filter(k=>k&&!(shp[k]&&Date.now()-shp[k].t<864e5)))].slice(0,80);if(!keys.length)return false;
+  shpBusy=true;try{const r=await sbRpc('get_prices_many',{p_codes:keys});if(!Array.isArray(r))return false;for(const k of keys)shp[k]={t:Date.now(),s:{}};
+    for(const x of r)shp[x.code].s[x.store]={p:Number(x.price),u:x.unit};const ks=Object.keys(shp);if(ks.length>800)for(const k of ks.slice(0,ks.length-800))delete shp[k];put('cart.shp',shp);return true}catch(e){return false}finally{shpBusy=false}}
+function cmpStores(L){const set=new Map();for(const s of stores)set.set(norm(s),s);for(const x of L){const k=shareKey(x.code||'',x.name);const o=k&&shp[k];if(o&&o.s)for(const s of Object.keys(o.s))if(!set.has(norm(s)))set.set(norm(s),s)}return [...set.values()]}
+function cmpData(L){const res=[];for(const st of cmpStores(L)){let tot=0,n=0,a=0,b=0,c=0,sh=0;const rows=[];
+    for(const x of L){const q=x.qty||1,me=priceAny(x,st),here=st===store?me:priceAny(x,store);if(me){tot+=me.p*q;n++;if(me.src==='compartido')sh++}
+      if(st!==store&&me&&here){a+=here.p*q;b+=me.p*q;c++;rows.push({x,here:here.p*q,there:me.p*q})}}
+    res.push({st,tot:r2(tot),n,common:c,diff:r2(b-a),rows,sh})}
+  return res}
+function renderCmpSheet(){const L=cur().filter(x=>!x.done);const D=cmpData(L),me=D.find(d=>d.st===store),others=D.filter(d=>d.st!==store&&d.common>0).sort((p,q)=>p.diff-q.diff),none=D.filter(d=>d.st!==store&&!d.common);
+  let h=`<p>Tu lista de <b>${esc(store)}</b>: ${L.length} productos, ${me?me.n:0} con precio aquí${me&&me.n?' · '+eur.format(me.tot):''}.</p>`;
+  if(!L.length)h+='<p>La lista está vacía.</p>';
+  for(const d of others){const best=d===others[0]&&d.diff<-0.009;
+    h+=`<details class="cmpcard${best?' best':''}"><summary><span><b>${esc(d.st)}</b><small>${d.common} de ${L.length} con precio en las dos${d.sh?' · '+d.sh+' de otros usuarios':''}</small></span><b class="${d.diff<-0.009?'better':d.diff>0.009?'worse':''}">${d.diff<-0.009?'Ahorras '+eur.format(-d.diff):d.diff>0.009?eur.format(d.diff)+' más':'Igual'}</b></summary>
+      <div class="hdet">${d.rows.sort((p,q)=>(p.there-p.here)-(q.there-q.here)).map(r=>`<div><span>${r.x.qty>1?r.x.qty+' × ':''}${esc(r.x.name)}</span><span>${eur.format(r.here)} → <b class="${r.there<r.here-0.004?'better':r.there>r.here+0.004?'worse':''}">${eur.format(r.there)}</b></span></div>`).join('')}</div>
+      ${d.diff<-0.009?`<button type="button" class="linkbtn" data-cmp="${esc(d.st)}" style="margin:6px 0 4px">Pasar la lista a ${esc(d.st)}</button>`:''}</details>`}
+  if(L.length&&!others.length)h+='<p class="calc">Aún no hay precios de estos productos en otras tiendas. Cuando tú o los demás compréis en otro súper, aparecerá aquí.</p>';
+  if(none.length)h+=`<p style="font-size:13px;color:var(--mute)">Sin precios para comparar en: ${none.map(d=>esc(d.st)).join(', ')}.</p>`;
+  h+='<p style="font-size:13px;color:var(--mute)">Se comparan solo los productos que tienen precio en las dos tiendas, con tus precios y los que han guardado otros usuarios en los últimos 3 meses.</p>';
+  $('cmpBody').innerHTML=h}
+$('cmpBtn').onclick=async()=>{renderCmpSheet();$('sCmp').classList.add('on');if(await fetchShared(cur().filter(x=>!x.done))){renderCmpSheet();renderShop()}};
+$('cmpClose').onclick=()=>$('sCmp').classList.remove('on');
+$('cmpBody').onclick=e=>{const b=e.target.closest('[data-cmp]');if(!b)return;const L=cur().filter(x=>!x.done);if(!L.length)return;moveIds=L.map(x=>x.id);$('sCmp').classList.remove('on');doMove(b.dataset.cmp)};
 $('shopCmp').onclick=e=>{const b=e.target.closest('[data-cmp]');if(!b)return;const L=cur().filter(x=>!x.done);if(!L.length)return;moveIds=L.map(x=>x.id);doMove(b.dataset.cmp)};
 /* ---- te toca comprar: cada cuánto compras cada cosa ---- */
 function dueItems(){
@@ -1773,7 +1808,7 @@ function openBackup(){
   $('bakText').value=JSON.stringify(backupData());$('bakMsg').textContent='';$('bakMsg').className='calc';
   $('bakPasteText').hidden=true;$('bakPaste').textContent='Desde texto pegado';$('sBak').classList.add('on');
 }
-const closeAll=()=>['sMenu','sHelp','sAbout','sTheme','sAcc'].forEach(id=>$(id).classList.remove('on'));
+const closeAll=()=>['sMenu','sHelp','sAbout','sTheme','sAcc','sCmp'].forEach(id=>$(id).classList.remove('on'));
 $('menuBtn').onclick=()=>$('sMenu').classList.add('on');
 $('menuClose').onclick=closeAll;$('helpClose').onclick=closeAll;$('aboutClose').onclick=closeAll;
 ['fMenu','fHelp','fAbout','fTheme'].forEach(id=>$(id).onsubmit=e=>e.preventDefault());
