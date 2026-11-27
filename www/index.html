@@ -628,17 +628,27 @@ function render(){
   for(const i of items)if(i.code&&!offc[i.code])offFetch(i.code,()=>render());
 }
 
+/* habituales: tus tickets de Carrefour + todo lo que has comprado en la app o añadido con ticket, de más a menos veces */
+let sugMore=false,lsugMore=false,SUG=[];
+function HAB(){const m=new Map(),now=Date.now();
+  const add=(n,p,v,c,d)=>{n=String(n||'').trim();if(!/[a-zñ]{3,}/i.test(n))return;const k=norm(n),o=m.get(k);if(o){o[3]+=c;if(o[1]==null&&p!=null)o[1]=p;if(!o[4]&&d)o[4]=d}else m.set(k,[n.replace(/^./,x=>x.toUpperCase()),p,v,c,d])};
+  for(const r of CAT)add(r[0],r[1],r[2],r[3],r[4]);
+  for(const h of history){const dd=new Date(h.t).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'}),rec=now-h.t<90*864e5?1:0;
+    for(const i of h.items||[]){const q=i[2]||1,fp=findPrice(i[0]);add(i[0],fp!=null?fp:(h.store===store?r2(i[1]/q):null),0,1+(h.store===store?1:0)+rec,dd)}}
+  return [...m.values()].sort((a,b)=>b[3]-a[3])}
+const moreBtn=(id,n)=>`<button type="button" class="linkbtn" id="${id}" style="display:block;margin:4px auto 0">${n>0?'Ver '+n+' más':'Ver menos'}</button>`;
 function renderSug(){
   const q=norm($('iName').value.trim()),words=q.split(/\s+/).filter(Boolean);
-  const list=(words.length?CAT.filter(r=>words.every(w=>norm(r[0]).includes(w))):CAT).slice(0,words.length?8:6);
+  const H=HAB(),all=words.length?H.filter(r=>words.every(w=>norm(r[0]).includes(w))):H,lim=words.length?10:(sugMore?60:12),list=all.slice(0,lim);SUG=list;
   $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':(CAT.length?'No está en tus compras: pon el precio a mano':'')):(list.length?'Lo que más compras':'');
   const pend=!listLink&&!editing?cur().filter(x=>!x.done).slice(0,5):[];
   $('sugl').hidden=!pend.length;
   $('sugl').innerHTML=pend.length?'<div class="sugt">¿Es algo de tu lista?</div><div class="sug">'+pend.map(x=>`<button type="button" data-l="${esc(x.id)}" class="fromlist"><span>${esc(x.name)}<small>De tu lista de la compra</small></span><b>${x.price!=null?eur.format(x.price):''}</b></button>`).join('')+'</div>':'';
-  $('sug').innerHTML=list.map((r,i)=>`<button type="button" data-i="${CAT.indexOf(r)}"><span>${esc(r[0])}<small>${r[2]?'Varía (peso u ofertas) · media':'Último precio '+esc(r[4])} · ${r[3]} ${r[3]===1?'vez':'veces'}</small></span><b>${eur.format(r[1])}</b></button>`).join('');
+  $('sug').innerHTML=list.map((r,i)=>`<button type="button" data-i="${i}"><span>${esc(r[0])}<small>${r[1]==null?'Sin precio en '+esc(store):r[2]?'Varía (peso u ofertas) · media':r[4]?'Último precio '+esc(r[4]):'Precio guardado'}</small></span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
+  if(!words.length&&all.length>12)$('sug').insertAdjacentHTML('beforeend',moreBtn('sugMore',sugMore?0:Math.min(all.length,60)-12));
 }
-$('sug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const r=CAT[+b.dataset.i];
-  const sc=isScale($('iCode').value.trim());$('iName').value=r[0];if(!sc)$('iPrice').value=r[1].toFixed(2).replace('.',',');
+$('sug').onclick=e=>{if(e.target.closest('#sugMore')){sugMore=!sugMore;renderSug();return}const b=e.target.closest('button');if(!b)return;const r=SUG[+b.dataset.i];if(!r)return;
+  const sc=isScale($('iCode').value.trim());$('iName').value=r[0];if(!sc&&r[1]!=null)$('iPrice').value=r[1].toFixed(2).replace('.',',');
   if(!sc){$('note').hidden=!r[2];$('note').textContent=r[2]?'Este precio cambia según el peso o las ofertas: compruébalo con la etiqueta.':''}
   renderSug();$('iPrice').focus();$('iPrice').select()};
 $('iName').addEventListener('input',renderSug);
@@ -1224,12 +1234,14 @@ $('shopUl').onclick=e=>{if(swiped){swiped=false;return}const b=e.target.closest(
 function renderListEditor(){
   const L=cur();$('tList').textContent='Lista para '+store;
   const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(L.map(x=>norm(x.name)));
-  let res=(w.length?CAT.filter(r=>w.every(t=>norm(r[0]).includes(t))):CAT.filter(r=>!inList.has(norm(r[0])))).slice(0,w.length?6:8).map(r=>[r[0],r[1]]);
-  if(w.length&&!CAT.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null]);
+  const H=HAB(),pool=w.length?H.filter(r=>w.every(t=>norm(r[0]).includes(t))):H.filter(r=>!inList.has(norm(r[0])));
+  let res=pool.slice(0,w.length?10:(lsugMore?80:20)).map(r=>[r[0],r[1]]);
+  if(w.length&&!H.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null,true]);
   $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
   const due=w.length?[]:dueItems();
   $('ldue').innerHTML=due.length?'<div class="sugt">Te toca comprar</div><div class="sug">'+due.map(d=>`<button type="button" data-n="${esc(d.name)}" class="fromlist"><span>${esc(d.name)}<small>${esc(d.why)}</small></span><b>${d.price!=null?eur.format(d.price):''}</b></button>`).join('')+'</div>'+(due.length>1?'<button type="button" class="linkbtn" id="dueAll">Añadir las '+due.length+' a la lista</button>':''):'';
-  $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[1]==null?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
+  $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[2]?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
+  if(!w.length&&pool.length>20)$('lsug').insertAdjacentHTML('beforeend',moreBtn('lsugMore',lsugMore?0:Math.min(pool.length,80)-20));
   $('lcur').innerHTML=L.length?L.map(x=>`<li data-id="${esc(x.id)}"><span class="n">${esc(x.name)}<small>${x.price!=null?eur.format(x.price)+' c/u':'sin precio'} · <button type="button" class="mv" data-a="mv">Pasar a otra tienda</button></small></span><button type="button" class="ico" data-a="m" aria-label="Menos">−</button><span class="qty">${x.qty}</span><button type="button" class="ico" data-a="p" aria-label="Más">+</button><button type="button" class="ico" data-a="x" aria-label="Quitar">✕</button></li>`).join(''):'<li class="shopempty">Todavía no hay nada.</li>';
   const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),np=L.filter(x=>x.price==null).length;
   $('pList').textContent=L.length?'Te costará unos '+eur.format(est)+(np?' (más '+np+' sin precio)':''):'Añade lo que necesitas; el precio sale de tus tickets.';
@@ -1266,7 +1278,7 @@ $('lpub').onclick=async e=>{const b=e.target.closest('button');if(!b)return;cons
     if(m&&Number(m.price)>0){it.price=Number(m.price);save();renderShop();if($('sList').classList.contains('on'))renderListEditor()}}};
 $('editList').onclick=()=>{$('lq').value='';renderListEditor();$('sList').classList.add('on')};
 $('lq').addEventListener('input',renderListEditor);
-$('lsug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=b.dataset.n,ex=cur().find(x=>norm(x.name)===norm(n));
+$('lsug').onclick=e=>{if(e.target.closest('#lsugMore')){lsugMore=!lsugMore;renderListEditor();return}const b=e.target.closest('button');if(!b)return;const n=b.dataset.n,ex=cur().find(x=>norm(x.name)===norm(n));
   if(ex)ex.qty++;else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:n,price:findPrice(n),qty:1,done:false,store});
   $('lq').value='';save();renderListEditor();renderShop();$('lq').focus()};
 $('lcur').onclick=e=>{const b=e.target.closest('button');if(!b)return;const i=shop.findIndex(x=>x.id===b.closest('li').dataset.id);if(i<0)return;
