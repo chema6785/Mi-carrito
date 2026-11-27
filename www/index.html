@@ -1791,6 +1791,11 @@ function handleAppUrl(u){put('cart.lasturl',{u:String(u||'').slice(0,80),t:Date.
 try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
   if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
+/* botón «atrás» de Android: cierra lo último que se abrió (foto, escáner, ventana); en la pantalla principal minimiza la app */
+function goBack(){if($('lightbox').classList.contains('on')){$('lightbox').classList.remove('on');return true}
+  if($('scanner').classList.contains('on')){stopScan();return true}
+  const open=[...document.querySelectorAll('.scrim.on')];if(!open.length)return false;open[open.length-1].classList.remove('on');return true}
+try{const A=capP('App');if(A)A.addListener('backButton',()=>{if(!goBack())A.minimizeApp()})}catch(e){}
 /* APK: si copiaste una invitación (de WhatsApp o del botón «Abrir en la app»), al abrir la app te ofrece unirte */
 let clipSeen=load('cart.clipseen','');
 async function checkClipJoin(){const C=capP('Clipboard');if(!C||document.hidden)return;let t='';try{const r=await C.read();t=String((r&&r.value)||'')}catch(e){return}
