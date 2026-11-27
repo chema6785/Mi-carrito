@@ -1246,7 +1246,7 @@ function dueItems(){
     const usual=Object.entries(st).sort((a,b)=>b[1]-a[1])[0];if(usual&&norm(usual[0])!==norm(store)&&!Object.keys(st).some(x=>norm(x)===norm(store)))continue;
     const since=now-last,ratio=since/interval;
     if(ratio>=.9&&ratio<=2.5)res.push({name:hm?hm.name:c[0],ratio,interval,why:'Soléis comprarlo cada '+Math.max(1,Math.round(interval/D))+' días · la última vez hace '+Math.round(since/D)+(usual&&Object.keys(st).length>1?' · sobre todo en '+usual[0]:''),price:findPrice(hm?hm.name:c[0])})}
-  return res.sort((a,b)=>a.interval-b.interval).slice(0,8);
+  return res.sort((a,b)=>a.interval-b.interval).slice(0,40);
 }
 function addToList(name,qty){const ex=cur().find(x=>norm(x.name)===norm(name));
   if(ex)ex.qty=(ex.qty||1)+(qty||1);else shop.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,price:findPrice(name),qty:qty||1,done:false,store})}
@@ -1673,12 +1673,14 @@ function renderHistory(){try{renderRises()}catch(e){}
 /* lo que más ha subido en los últimos 4 meses, mirando el historial de precios de cada tienda */
 function renderRises(){const since=Date.now()-120*864e5,out=[];
   const look=(name,r)=>{if(!r||!Array.isArray(r.hist))return;const by={};for(const h of r.hist)if(h&&h[0]>=since&&h[1]>0&&h[2])(by[h[2]]=by[h[2]]||[]).push(h);
-    for(const [st,hs] of Object.entries(by)){if(hs.length<2)continue;hs.sort((a,b)=>a[0]-b[0]);const a=hs[0],z=hs[hs.length-1];const d=r2(z[1]-a[1]);
+    for(const [st,hs] of Object.entries(by)){if(hs.length<2||norm(st)!==norm(store))continue;hs.sort((a,b)=>a[0]-b[0]);const a=hs[0],z=hs[hs.length-1];const d=r2(z[1]-a[1]);
       if(d>=0.05)out.push({name,st,a:a[1],z:z[1],d,pc:d/a[1],t:a[0]})}};
   for(const r of Object.values(known))if(r&&r.mode!=='kg')look(r.name||'',r);
   for(const [k,r] of Object.entries(byName))look(r.name||k.replace(/^./,c=>c.toUpperCase()),r);
-  out.sort((x,y)=>y.pc-x.pc);const top=out.slice(0,8);
-  $('histUp').innerHTML=top.length?`<details class="rises"><summary>Lo que más ha subido (${top.length})</summary><div class="hdet">${top.map(x=>`<div><span>${esc(x.name)}<small> · ${esc(x.st)} · ${eur.format(x.a)} → ${eur.format(x.z)}</small></span><span style="color:var(--warn)">+${Math.round(x.pc*100)} %</span></div>`).join('')}</div></details>`:''}
+  /* el mismo producto puede estar guardado por código y por nombre: se queda una vez, con la subida mayor */
+  const seen=new Map();for(const x of out){const k=norm(x.name);if(!k)continue;const o=seen.get(k);if(!o||x.pc>o.pc)seen.set(k,x)}
+  const top=[...seen.values()].sort((x,y)=>y.pc-x.pc).slice(0,15);
+  $('histUp').innerHTML=top.length?`<details class="rises"><summary>Lo que más ha subido en ${esc(store)} (${top.length})</summary><div class="hdet">${top.map(x=>`<div><span>${esc(x.name)}<small> · ${eur.format(x.a)} → ${eur.format(x.z)} desde el ${fdm(x.t)}</small></span><span style="color:var(--warn)">+${Math.round(x.pc*100)} %</span></div>`).join('')}</div></details>`:''}
 /* ---- gasto de la casa: compras compartidas con la lista familiar ---- */
 let famOn=load('cart.famon',false),fam=load('cart.fam',[]),famView=load('cart.famview','me'),famQ=load('cart.famq',[]),famBusy=false;
 function famPush(h,del){if(!famOn||!listCode)return;famQ=famQ.filter(x=>x.id!==h.id);famQ.push({id:h.id,t:h.t,store:h.store,total:h.total,paid:h.paid,saved:h.saved||0,items:(h.items||[]).slice(0,400),deleted:!!del});put('cart.famq',famQ);famFlush()}
