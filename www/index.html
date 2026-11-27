@@ -50,6 +50,7 @@ button{font-family:inherit}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
 .act{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 9px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 5%,var(--paper));color:var(--ink);font:600 14px/1.1 Onest,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
 .shead .act span{color:inherit;font-size:inherit}
+.rises{margin:8px 18px 14px}.rises summary{cursor:pointer;font-weight:600;padding:6px 0}.rises small{color:var(--mute)}
 .seg{display:flex;margin:0 18px 10px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--paper))}.seg[hidden]{display:none}
 .seg button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:var(--mute);font:600 14px Onest,sans-serif;cursor:pointer}.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #0002}
 #histWho{margin:0 18px 8px}.famopt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.who{font-size:12px;font-weight:700;color:var(--accent)}
@@ -259,6 +260,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <div class="shead shop-h"><div><b>Tus compras</b><span id="histSum">Cuando termines una compra, aparecerá aquí</span></div><div class="acts"><button class="act" id="histAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir compra con el ticket</button></div></div>
     <div class="seg" id="histSeg" hidden><button type="button" data-v="me" class="on">Mías</button><button type="button" data-v="casa">Toda la casa</button></div><div class="calc" id="histWho" hidden></div><div class="bars" id="histBars"></div>
     <ul id="histUl"></ul>
+    <div id="histUp"></div>
   </section>
   <p class="foot">Mi carrito · creada por <b>chema6785</b></p>
 </div>
@@ -549,6 +551,14 @@ const eur=new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR'});
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}};
 const put=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+/* ---- informes de fallos: se apuntan y se mandan al servidor para poder arreglarlos sin vídeos ni capturas ---- */
+let errQ=load('cart.errq',[]);
+function logErr(kind,msg,ctx){try{const e={kind,msg:String(msg||'').slice(0,500),ctx:ctx||null,t:Date.now(),ver:(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()?'apk ':'web ')+(window.__ver||''),who:load('cart.myname','')};
+  if(errQ.some(x=>x.msg===e.msg&&x.kind===kind&&Date.now()-x.t<6e4))return;errQ.push(e);errQ=errQ.slice(-40);put('cart.errq',errQ);setTimeout(flushErr,3000)}catch(_){}}
+async function flushErr(){try{if(!errQ.length||!navigator.onLine||typeof sbRpc!=='function')return;const send=errQ.slice(0,30);
+  await sbRpc('log_errors',{p_device:load('cart.device',''),p:send.map(x=>({...x,ctx:{...(x.ctx||{}),at:new Date(x.t).toISOString(),ua:navigator.userAgent.slice(0,140)}}))});errQ=errQ.slice(send.length);put('cart.errq',errQ)}catch(_){}}
+addEventListener('error',e=>logErr('js',e.message,{src:String(e.filename||'').split('/').pop(),line:e.lineno,col:e.colno}));
+addEventListener('unhandledrejection',e=>logErr('promise',(e.reason&&(e.reason.message||e.reason))||'promesa rechazada'));
 let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{}),shop=load('cart.shop',[]),byName=load('cart.byname',{}),
     stores=load('cart.stores',['Carrefour']),store=load('cart.store','Carrefour'),history=load('cart.history',[]);
 /* tus productos y precios de tickets: ya no van en el código (es público); se cargan desde tu copia de seguridad */
@@ -568,7 +578,12 @@ const TH=(MY&&MY.th&&typeof MY.th==='object')?MY.th:{};
 let offc=load('cart.offc',{});
 /* limpia fallos guardados por error con mala cobertura, para volver a intentarlo */
 if(!load('cart.offfix1',false)){for(const k in offc)if(!offc[k].img&&!offc[k].ns&&!offc[k].nova)delete offc[k];put('cart.offc',offc);put('cart.offfix1',true)}
-function setPrice(rec,p){rec.hist=(rec.hist||[]).concat([[Date.now(),p,store]]).slice(-24);if(!rec.prices){rec.prices={};if(rec.price!=null&&store!=='Carrefour')rec.prices.Carrefour={p:rec.price,d:rec.date,t:0}}rec.prices[store]={p,d:ddmm(),t:Date.now()};rec.price=p;rec.date=ddmm();return rec}
+/* aviso de subida: compara con el último precio guardado en esta tienda */
+let pchgT=null;
+function priceNotice(rec,p){const prev=rec&&rec.prices&&rec.prices[store];if(!prev||prev.p==null||!(p>0))return;const d=r2(p-prev.p);if(Math.abs(d)<0.01)return;
+  const name=rec.name||'',when=prev.d?' desde el '+prev.d:'';clearTimeout(pchgT);
+  pchgT=setTimeout(()=>toast((d>0?'⬆ Sube ':'⬇ Baja ')+eur.format(Math.abs(d))+when+(name?' · '+name:'')+' (antes '+eur.format(prev.p)+')'),900)}
+function setPrice(rec,p){priceNotice(rec,p);rec.hist=(rec.hist||[]).concat([[Date.now(),p,store]]).slice(-24);if(!rec.prices){rec.prices={};if(rec.price!=null&&store!=='Carrefour')rec.prices.Carrefour={p:rec.price,d:rec.date,t:0}}rec.prices[store]={p,d:ddmm(),t:Date.now()};rec.price=p;rec.date=ddmm();return rec}
 function compareNote(rec){const here=priceFor(rec);if(!here)return '';const o=otherPrices(rec).filter(x=>here.here?x[1]<here.p-0.004:true).sort((a,b)=>a[1]-b[1])[0];
   if(!here.here)return 'Precio de '+here.at+(here.d?' ('+here.d+')':'')+': compruébalo aquí.';
   return o?'Más barato en '+o[0]+': '+eur.format(o[1])+'.':''}
@@ -1030,12 +1045,12 @@ async function readLabel(file){
     if($('iCode').value.trim())got.push('código');
     renderSug();calc();
     if(got.length){msg.textContent='He leído: '+got.join(', ')+'. Revisa que esté bien antes de añadir.'}
-    else{msg.className='calc warn';msg.textContent='No he podido leer la etiqueta. Prueba más cerca, de frente y con luz, o escríbelo.'}
+    else{logErr('etiqueta','sin datos en la etiqueta');msg.className='calc warn';msg.textContent='No he podido leer la etiqueta. Prueba más cerca, de frente y con luz, o escríbelo.'}
     const c=$('iCode').value.trim();
     if(c&&!known[c]&&(!r.name||r.price==null&&!r.perKg))lookupOnline(c);
   }catch(e){msg.className='calc warn';const em=String(e&&e.message||e);
     if(/^tiempo/.test(em)){ocrReset();msg.textContent=em.includes('preparar')?'La lectura no ha podido prepararse a tiempo. Vuelve a intentarlo; si sigue igual, escribe el precio a mano y avísame.':'La lectura está tardando demasiado. Prueba con la foto más cerca de la etiqueta.'}
-    else msg.textContent='No he podido leer la etiqueta ('+em.slice(0,60)+'). Vuelve a intentarlo.'}
+    else msg.textContent='No he podido leer la etiqueta ('+em.slice(0,60)+'). Vuelve a intentarlo.';logErr('etiqueta',em)}
   finally{$('labelBtn').disabled=false;ocrProgress=null}
 }
 $('labelBtn').onclick=()=>{$('labelCam').value='';$('labelCam').click()};
@@ -1436,7 +1451,7 @@ $('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;
     if(r.total!=null){tkTotal=r.total;if(!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}}
     renderReceipt();
     if(!r.lines.length&&r.total==null){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. Ponlo plano, con luz y que se vea entero o por partes.</span></div></div>'}
-  }catch(err){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. La primera vez necesita conexión para preparar la lectura.</span></div></div>'}
+  }catch(err){logErr('ticket',err&&err.message||err);$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. La primera vez necesita conexión para preparar la lectura.</span></div></div>'}
   finally{b.disabled=false;b.lastChild.textContent=tkLines.length?'Añadir otra foto del ticket':'Escanear el ticket de caja'}};
 /* ---- Ticket en PDF (app de Carrefour y otras): se lee el texto del PDF, sin cámara ni OCR ---- */
 /* Ticket PDF de Carrefour: «NOMBRE» y debajo «2 x ( 0,89 ) 1,78»; descuentos «1 3x2 … 2G20 -2,99» ligados por el código de promo;
@@ -1480,9 +1495,9 @@ async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.tex
     if(!tkCtx&&r.total!=null&&!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}
     if(!r.lines.length){tkEl().innerHTML='<div class="tk"><div class="r bad"><span>He abierto el PDF, pero no encuentro líneas con precio. Puede que este ticket tenga otro formato.</span></div></div>';return}
     renderReceipt()}
-  catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
+  catch(err){logErr('pdf',err&&err.message||err,{f:file&&file.name});tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
   finally{btn.disabled=false;btn.lastChild.textContent=label}}
-window.mcDbg={run:c=>eval(c),pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t),recv:t=>parseReceipt(t),ocr:async(f,mx,psm,raw)=>{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:psm||'4'});const {data}=await w.recognize(raw?rawScaled(img,mx||2400):imgToCanvas(img,mx||2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});return data.text}};
+window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t),recv:t=>parseReceipt(t),ocr:async(f,mx,psm,raw)=>{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:psm||'4'});const {data}=await w.recognize(raw?rawScaled(img,mx||2400):imgToCanvas(img,mx||2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});return data.text}};
 /* ---- añadir una compra pasada desde el ticket (foto o PDF), para llevar el gasto del mes ---- */
 let nt=null,ntSel='';
 function tkDate(text){const m=String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);if(!m)return null;let y=+m[3];if(y<100)y+=2000;const d=new Date(y,+m[2]-1,+m[1],12);return isNaN(d)||d>Date.now()+864e5||y<2020?null:d}
@@ -1519,7 +1534,7 @@ function ntShow(r,text){
   $('ntRes').innerHTML=h;$('ntSave').hidden=false}
 $('ntRes').addEventListener('click',e=>{if(!e.target.closest('#ntUseSum')||!nt)return;const sum=r2(nt.items.reduce((a,i)=>a+i[1],0));nt.total=sum;nt.paid=null;
   $('ntRes').querySelector('.tk').firstElementChild.outerHTML=`<div class="r"><span>Total usado<small>Suma de las líneas leídas</small></span><b>${eur.format(sum)}</b></div>`;e.target.closest('.r').remove()});
-function ntFail(msg){$('ntRes').innerHTML=`<div class="tk"><div class="r bad"><span>${msg}</span></div></div>`;$('ntSave').hidden=true}
+function ntFail(msg){logErr('ticket',msg);$('ntRes').innerHTML=`<div class="tk"><div class="r bad"><span>${msg}</span></div></div>`;$('ntSave').hidden=true}
 $('ntPdfBtn').onclick=()=>{$('ntPdf').value='';$('ntPdf').click()};
 $('ntPdf').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('ntPdfBtn'),lb=b.lastChild.textContent;b.disabled=true;b.lastChild.textContent='Leyendo el PDF…';
   try{const text=await pdfText(f);if(!text.trim())return ntFail('Este PDF es una imagen, sin texto. Usa «Foto del ticket».');
@@ -1533,7 +1548,7 @@ $('ntCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('
     if(!text){const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'6'});const {data}=await w.recognize(imgToCanvas(img,2400),{},{text:true});await w.setParameters({tessedit_pageseg_mode:'3'});text=data.text}
     URL.revokeObjectURL(url);
     const r={...parseReceipt(text),sub:null,gdisc:[]};if(!r.lines.length&&r.total==null&&cashTotal(text)==null)return ntFail('No he podido leer el ticket. Ponlo plano, con luz y que se vea entero.');ntShow(r,text)}
-  catch(err){ntFail('No he podido leer el ticket. La primera vez necesita conexión.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
+  catch(err){logErr('ticket',err&&err.message||err);ntFail('No he podido leer el ticket. La primera vez necesita conexión.')}finally{b.disabled=false;b.lastChild.textContent=lb}};
 $('ntSave').onclick=()=>{if(!nt)return;const st0=$('ntStore').value.trim().replace(/\s+/g,' ')||ntSel||store,ex=stores.find(x=>norm(x)===norm(st0)),st=ex||st0;if(!ex)stores.push(st);
   const dv=$('ntDate').value,d=dv?new Date(dv+'T12:00:00'):new Date(),t=isNaN(d)?Date.now():d.getTime(),amount=nt.paid!=null?nt.paid:nt.total;
   const dup=history.find(h=>h.store===st&&Math.abs(spent(h)-amount)<0.01&&new Date(h.t).toDateString()===new Date(t).toDateString());
@@ -1567,7 +1582,7 @@ $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t
   history.unshift({id:Date.now().toString(36),t:Date.now(),store,total:t,paid:isNaN(p)?null:p,saved:r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0)),items:items.map(i=>[i.name||'Artículo',lineTotal(i),i.qty])});
   famPush(history[0]);items=[];cur().forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
 const spent=h=>h.paid!=null?h.paid:h.total;
-function renderHistory(){
+function renderHistory(){try{renderRises()}catch(e){}
   const casa=famOn&&!!listCode;$('histSeg').hidden=!casa;const all=casa&&famView==='casa';
   [...$('histSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.v===(all?'casa':'me')));
   const H=all?[...history,...fam].sort((a,b)=>b.t-a.t):history;
@@ -1587,6 +1602,15 @@ function renderHistory(){
       <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}${h.who?'':`<button type="button" class="linkbtn" data-tkh="${esc(h.id)}" style="display:block;margin-top:6px">Comprobar con el ticket en PDF</button><button type="button" class="linkbtn" data-hdel="${esc(h.id)}" style="display:block;color:var(--warn)">Borrar esta compra</button>`}</div></details></li>`}).join('');
 }
 
+/* lo que más ha subido en los últimos 4 meses, mirando el historial de precios de cada tienda */
+function renderRises(){const since=Date.now()-120*864e5,out=[];
+  const look=(name,r)=>{if(!r||!Array.isArray(r.hist))return;const by={};for(const h of r.hist)if(h&&h[0]>=since&&h[1]>0&&h[2])(by[h[2]]=by[h[2]]||[]).push(h);
+    for(const [st,hs] of Object.entries(by)){if(hs.length<2)continue;hs.sort((a,b)=>a[0]-b[0]);const a=hs[0],z=hs[hs.length-1];const d=r2(z[1]-a[1]);
+      if(d>=0.05)out.push({name,st,a:a[1],z:z[1],d,pc:d/a[1],t:a[0]})}};
+  for(const r of Object.values(known))if(r&&r.mode!=='kg')look(r.name||'',r);
+  for(const [k,r] of Object.entries(byName))look(r.name||k.replace(/^./,c=>c.toUpperCase()),r);
+  out.sort((x,y)=>y.pc-x.pc);const top=out.slice(0,8);
+  $('histUp').innerHTML=top.length?`<details class="rises"><summary>Lo que más ha subido (${top.length})</summary><div class="hdet">${top.map(x=>`<div><span>${esc(x.name)}<small> · ${esc(x.st)} · ${eur.format(x.a)} → ${eur.format(x.z)}</small></span><span style="color:var(--warn)">+${Math.round(x.pc*100)} %</span></div>`).join('')}</div></details>`:''}
 /* ---- gasto de la casa: compras compartidas con la lista familiar ---- */
 let famOn=load('cart.famon',false),fam=load('cart.fam',[]),famView=load('cart.famview','me'),famQ=load('cart.famq',[]),famBusy=false;
 function famPush(h,del){if(!famOn||!listCode)return;famQ=famQ.filter(x=>x.id!==h.id);famQ.push({id:h.id,t:h.t,store:h.store,total:h.total,paid:h.paid,saved:h.saved||0,items:(h.items||[]).slice(0,400),deleted:!!del});put('cart.famq',famQ);famFlush()}
@@ -1639,6 +1663,7 @@ async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)retu
 let myName=load('cart.myname',''),lastBeat=0,members=[],listCode=load('cart.listcode',''),listSince=load('cart.listsince',null),snap=load('cart.listsnap',{}),syncT=null,syncing=false;
 const sig=x=>JSON.stringify([x.name,x.price??null,x.qty||1,!!x.done,x.store||'']);
 function scheduleSync(){if(!listCode||!sbOn())return;clearTimeout(syncT);syncT=setTimeout(syncList,800)}
+let listOnce=false;
 async function syncList(){
   if(!listCode||!sbOn()||syncing||!navigator.onLine)return;syncing=true;
   try{
@@ -1647,14 +1672,15 @@ async function syncList(){
     for(const id of Object.keys(snap))if(!ids.has(id))ch.push({id,name:'-',price:'',qty:1,done:false,deleted:true});
     if(ch.length)await sbRpc('put_list',{p_list:listCode,p_items:ch});
     const rows=await sbRpc('get_list',{p_list:listCode,p_since:listSince?new Date(Date.parse(listSince)-30000).toISOString():null})||[];
-    let changed=false;
+    let changed=false;const added=[],first=!listOnce;listOnce=true;
     for(const r of rows){const i=shop.findIndex(x=>x.id===r.id);
       if(r.deleted){if(i>=0){shop.splice(i,1);changed=true}}
       else{const v={name:r.name,price:r.price==null?null:Number(r.price),qty:r.qty,done:r.done,store:r.store||(i>=0?shop[i].store:store)};
-        if(i<0){shop.push({id:r.id,...v});changed=true}else if(sig(shop[i])!==sig(v)){Object.assign(shop[i],v);changed=true}}
+        if(i<0){shop.push({id:r.id,...v});changed=true;if(!first&&!snap[r.id])added.push(v)}else if(sig(shop[i])!==sig(v)){Object.assign(shop[i],v);changed=true}}
       if(!listSince||r.updated_at>listSince)listSince=r.updated_at}
     if(myName&&Date.now()-lastBeat>60000){lastBeat=Date.now();sbRpc('join_list',{p_list:listCode,p_device:device,p_name:myName}).catch(()=>{})}
     if($('sShare').classList.contains('on'))loadMembers();
+    if(added.length)setTimeout(()=>noticeAdded(added),1800);
     snap={};for(const x of shop)snap[x.id]=sig(x);
     put('cart.listsnap',snap);put('cart.listsince',listSince);put('cart.shop',shop);
     if(changed){renderShop();if($('sList').classList.contains('on'))renderListEditor()}
@@ -1664,6 +1690,12 @@ async function syncList(){
 }
 function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\nSi tienes la app: copia este mensaje y abre Mi carrito, te preguntará si quieres unirte.'}
 function ago(t){const m=Math.round((Date.now()-Date.parse(t))/60000);return m<2?'ahora':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'hace '+Math.round(m/1440)+' d'}
+/* aviso cuando otra persona de la lista añade cosas */
+async function noticeAdded(added){if(!members.length)try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){}
+  const others=members.filter(m=>!m.me).map(m=>m.name);const who=others.length===1?others[0]:'Alguien de tu lista';
+  const names=added.slice(0,4).map(x=>x.name.toLowerCase()).join(', ')+(added.length>4?' y '+(added.length-4)+' más':'');
+  const sts=[...new Set(added.map(x=>x.store).filter(Boolean))];
+  toast(who+' ha añadido: '+names+(sts.length===1&&sts[0]!==store?' ('+sts[0]+')':''));clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),7000)}
 async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){members=[]}
   $('members').innerHTML=members.length?members.map(m=>`<li><span>${esc(m.name)}${m.me?' (tú)':''}${m.owner?' · creó la lista':''}</span><small>${m.me?'':esc(ago(m.last_seen))}</small></li>`).join(''):'<li><span>Solo tú, de momento</span></li>';
   const me=members.find(m=>m.me);$('shareReset').hidden=!(me&&me.owner&&members.length>1);
@@ -1693,7 +1725,7 @@ function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);i
   try{window.window.history.replaceState(null,'',location.pathname)}catch(e){}
   offerJoin(m[1])}
 /* la APK recibe los enlaces micarrito://unir/CODIGO */
-function handleAppUrl(u){put('cart.lasturl',{u:String(u||'').slice(0,80),t:Date.now()});if(/^micarrito:\/\/login/i.test(String(u||''))){gotTokens(u);return}const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
+function handleAppUrl(u){put('cart.lasturl',{u:String(u||'').slice(0,80),t:Date.now()});logErr('enlace','enlace recibido',{u:String(u||'').replace(/(access|refresh)_token=[^&]*/g,'$1_token=…').slice(0,90)});if(/^micarrito:\/\/login/i.test(String(u||''))){gotTokens(u);return}const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
 try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
   if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
@@ -1704,7 +1736,7 @@ async function checkClipJoin(){const C=capP('Clipboard');if(!C||document.hidden)
   clipSeen=code;put('cart.clipseen',code);offerJoin(code)}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(checkClipJoin,600)});setTimeout(checkClipJoin,2500);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices();famFlush();famPull()}});
-addEventListener('online',()=>{syncList();flushPrices();famFlush()});
+addEventListener('online',()=>{syncList();flushPrices();famFlush();flushErr()});
 
 /* ---- copia de seguridad ---- */
 function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,hdel,mydata:load('cart.mydata',null),savedAt:load('cart.lchg',0)}}
@@ -1740,7 +1772,7 @@ const isNative=()=>!!(window.Capacitor&&window.Capacitor.isNativePlatform&&windo
 let myBuild=null;
 async function checkUpdate(manual){
   if(!isNative())return;
-  try{if(!myBuild){const r=await fetch('build.json',{cache:'no-store'});myBuild=r.ok?await r.json():null}
+  try{if(!myBuild){const r=await fetch('build.json',{cache:'no-store'});myBuild=r.ok?await r.json():null;if(myBuild)window.__ver=String(myBuild.sha||'').slice(0,7)}
     if(myBuild)$('verTxt').textContent='Versión del '+new Date(myBuild.t).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
     if(!manual&&Date.now()-load('cart.updcheck',0)<6*36e5)return;
     if(!navigator.onLine){if(manual)toast('Sin conexión para buscar actualizaciones');return}
@@ -1771,11 +1803,11 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)takeHandof
 function loginGoogle(){const redir=isNative()?'https://chema6785.github.io/Mi-carrito/login.html?n='+newHandoff():location.origin+location.pathname;
   toast('Abriendo Google…');location.href=SB_URL+'/auth/v1/authorize?provider=google&redirect_to='+encodeURIComponent(redir)}
 async function gotTokens(frag){put('cart.handoff',null);clearInterval(hoT);const f=String(frag||''),p=new URLSearchParams(f.includes('#')?f.replace(/^.*?#/,''):f.replace(/^[^?]*\?/,''));
-  if(p.get('error')){toast('No se pudo entrar: '+(p.get('error_description')||p.get('error')).replace(/\+/g,' '));return}
+  if(p.get('error')){logErr('login',p.get('error_description')||p.get('error'));toast('No se pudo entrar: '+(p.get('error_description')||p.get('error')).replace(/\+/g,' '));return}
   const at=p.get('access_token'),rt=p.get('refresh_token');if(!at||!rt)return;
   auth={at,rt,exp:Date.now()+(+p.get('expires_in')||3600)*1000,user:null};
   try{const r=await fetch(SB_URL+'/auth/v1/user',{headers:authH()});if(!r.ok)throw 0;const u=await r.json(),m=u.user_metadata||{};
-    auth.user={id:u.id,email:u.email||'',name:m.full_name||m.name||'',pic:m.avatar_url||m.picture||''}}catch(e){auth=null;toast('No se pudo completar el acceso');return}
+    auth.user={id:u.id,email:u.email||'',name:m.full_name||m.name||'',pic:m.avatar_url||m.picture||''}}catch(e){logErr('login','no se pudo leer el usuario');auth=null;toast('No se pudo completar el acceso');return}
   put('cart.auth',auth);if(!myName&&auth.user.name){myName=auth.user.name.split(' ')[0];put('cart.myname',myName)}
   adoptAccountDevice();await cloudPull(true);cloudPush();renderAcc();toast('Has entrado como '+(auth.user.name||auth.user.email))}
 async function token(){if(!auth)return null;if(Date.now()<auth.exp-60000)return auth.at;
@@ -1870,7 +1902,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-fixStores();applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);setTimeout(()=>{famFlush();famPull()},2500);checkJoinLink();if(listCode&&sbOn())loadMembers();
+fixStores();applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);setTimeout(flushErr,6000);setTimeout(()=>{famFlush();famPull()},2500);checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
   setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}
