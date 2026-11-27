@@ -18,6 +18,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - name: Preparar proyecto Android
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
           npm install
           echo "{\"t\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"sha\":\"${GITHUB_SHA}\"}" > www/build.json
@@ -44,14 +47,23 @@ jobs:
           # firma siempre con la misma clave y número de versión creciente, para poder actualizar encima
           sed -i "s/versionCode 1$/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
           grep -n "versionCode" android/app/build.gradle
-          cat >> android/app/build.gradle <<'GRADLE'
+          # la clave de firma está en los secretos del repositorio (no a la vista); si aún no existen, se usa la antigua
+          if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
+            echo "$KS_B64" | tr -d ' \n\r' | base64 -d > android/firma.jks
+            KS=../firma.jks; KA=micarrito; KP="$KS_PASS"
+            echo "Firmando con la clave secreta"
+          else
+            KS=../../android-keystore/debug.keystore; KA=androiddebugkey; KP=android
+            echo "AVISO: sin secretos, firmando con la clave antigua"
+          fi
+          cat >> android/app/build.gradle <<GRADLE
           android {
               signingConfigs {
                   fija {
-                      storeFile file('../../android-keystore/debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
+                      storeFile file('$KS')
+                      storePassword '$KP'
+                      keyAlias '$KA'
+                      keyPassword '$KP'
                   }
               }
               buildTypes {

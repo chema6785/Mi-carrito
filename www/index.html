@@ -508,7 +508,8 @@ const load=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}c
 const put=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 let items=load('cart.items',[]),budget=load('cart.budget',0),known=load('cart.known',{}),shop=load('cart.shop',[]),byName=load('cart.byname',{}),
     stores=load('cart.stores',['Carrefour']),store=load('cart.store','Carrefour'),history=load('cart.history',[]);
-const CAT=[];
+/* tus productos y precios de tickets: ya no van en el código (es público); se cargan desde tu copia de seguridad */
+const MY=load('cart.mydata',null),CAT=(MY&&Array.isArray(MY.cat))?MY.cat:[];
 const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 /* ---- precios por tienda ---- */
 const ddmm=()=>new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'});
@@ -520,7 +521,7 @@ function priceFor(rec){
   return o?{p:o[1].p,d:o[1].d,at:o[0],here:false}:null;
 }
 function otherPrices(rec){const ps=rec&&rec.prices;if(!ps)return store!=='Carrefour'&&rec&&rec.price!=null?[['Carrefour',rec.price]]:[];return Object.entries(ps).filter(([k])=>k!==store).map(([k,v])=>[k,v.p])}
-const TH={};
+const TH=(MY&&MY.th&&typeof MY.th==='object')?MY.th:{};
 let offc=load('cart.offc',{});
 /* limpia fallos guardados por error con mala cobertura, para volver a intentarlo */
 if(!load('cart.offfix1',false)){for(const k in offc)if(!offc[k].img&&!offc[k].ns&&!offc[k].nova)delete offc[k];put('cart.offc',offc);put('cart.offfix1',true)}
@@ -614,7 +615,7 @@ function render(){
 function renderSug(){
   const q=norm($('iName').value.trim()),words=q.split(/\s+/).filter(Boolean);
   const list=(words.length?CAT.filter(r=>words.every(w=>norm(r[0]).includes(w))):CAT).slice(0,words.length?8:6);
-  $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':'No está en tus tickets: pon el precio a mano'):'Lo que más compras';
+  $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':(CAT.length?'No está en tus compras: pon el precio a mano':'')):(list.length?'Lo que más compras':'');
   const pend=!listLink&&!editing?cur().filter(x=>!x.done).slice(0,5):[];
   $('sugl').hidden=!pend.length;
   $('sugl').innerHTML=pend.length?'<div class="sugt">¿Es algo de tu lista?</div><div class="sug">'+pend.map(x=>`<button type="button" data-l="${esc(x.id)}" class="fromlist"><span>${esc(x.name)}<small>De tu lista de la compra</small></span><b>${x.price!=null?eur.format(x.price):''}</b></button>`).join('')+'</div>':'';
@@ -1553,7 +1554,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList(
 addEventListener('online',()=>{syncList();flushPrices()});
 
 /* ---- copia de seguridad ---- */
-function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias}}
+function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,mydata:load('cart.mydata',null)}}
 function openBackup(){
   const nk=Object.keys(known).length,nn=Object.keys(byName).length;
   $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en tus listas.`;
@@ -1634,6 +1635,7 @@ function restore(txt){
     if(!budget&&d.budget)budget=d.budget;
     if(!items.length&&Array.isArray(d.items))items=d.items;
     if(Array.isArray(d.stores))for(const x of d.stores)if(!stores.includes(x))stores.push(x);
+    if(d.mydata&&Array.isArray(d.mydata.cat)){put('cart.mydata',d.mydata);setTimeout(()=>location.reload(),1800)}
     if(d.tkAlias&&typeof d.tkAlias==='object'){tkAlias=Object.assign({},d.tkAlias,tkAlias);put('cart.tkalias',tkAlias)}
     if(Array.isArray(d.history)){const ids=new Set(history.map(h=>h.id));for(const h of d.history)if(!ids.has(h.id))history.push(h);history.sort((a,b)=>b.t-a.t)}
     applyByName();
