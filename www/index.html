@@ -651,6 +651,7 @@ function scaleText(code){const s=getScale(code),p=scalePrice(code);
 function prefillFromCode(code,msg){
   if(isScale(code)){const {s,p,approx}=scaleText(code);
     openItem({code,name:s?s.name:'',price:p,msg:s?'Etiqueta de báscula: '+s.name+'. Precio leído del código.':'Etiqueta de báscula: el precio lo he leído del código. Dime qué producto es; la próxima vez lo reconoceré solo.',note:approx?approx+'. Compruébalo con la etiqueta.':'Compruébalo con el importe impreso en la etiqueta.',focus:s?'iPrice':'iName'});
+    if(s&&s.perKg){const g=matchGrams(p,s.perKg);if(g&&fillScale(code,{perKg:s.perKg,grams:g})){$('note').hidden=false;$('note').textContent='Peso calculado con el último precio/kg que guardaste ('+eur.format(s.perKg)+'/kg). Si ha cambiado, corrígelo con la etiqueta.'}}
     return}
   const k=known[code],pf=priceFor(k);let price=pf?pf.p:null,note=k?compareNote(k):'';
   const perKg=k&&k.mode==='kg'&&pf?pf.p:k&&k.perKg;
@@ -767,8 +768,11 @@ async function tick(){
 $('scan').onclick=()=>startScan();
 $('codeScan').onclick=()=>startScan('code');
 $('scanClose').onclick=stopScan;
-$('snapLabel').onclick=()=>{
+$('snapLabel').onclick=async()=>{
   const v=$('vid');if(!v.videoWidth){toast('La cámara aún no está lista');return}
+  /* foto a resolución completa si el móvil lo permite (mucho más nítida que un fotograma del vídeo) */
+  try{const tr=stream&&stream.getVideoTracks()[0];if(tr&&'ImageCapture' in window){$('scanmsg').textContent='Haciendo la foto…';
+    const b=await withTimeout(new ImageCapture(tr).takePhoto(),6000,'foto');if(b&&b.size>20000){stopScan();openItem({msg:'Leyendo la etiqueta…',focus:'iName'});readLabel(new File([b],'etiqueta.jpg',{type:b.type||'image/jpeg'}));return}}}catch(e){}
   const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
   try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}
   c.toBlob(b=>{stopScan();if(!b)return;
@@ -780,7 +784,7 @@ function fillCode(code){
     else if(!$('iPrice').value.trim()&&pf)$('iPrice').value=pf.p.toFixed(2).replace('.',',');
     const cn=compareNote(k);$('note').hidden=!cn;$('note').textContent=cn;
     $('pItem').textContent='Código leído: ya lo tenías guardado.';renderSug();calc();return}
-  if(isScale(code)){const {s:sc,p,approx}=scaleText(code);setMode('unit');$('iPrice').value=p.toFixed(2).replace('.',',');if(sc&&!$('iName').value.trim())$('iName').value=sc.name;$('pItem').textContent='Etiqueta de báscula: precio leído del código.'+(approx?' '+approx+'.':'');renderSug();calc();return}
+  if(isScale(code)){const {s:sc,p,approx}=scaleText(code);setMode('unit');$('iPrice').value=p.toFixed(2).replace('.',',');if(sc&&sc.perKg){const g=matchGrams(p,sc.perKg);if(g)fillScale(code,{perKg:sc.perKg,grams:g})}if(sc&&!$('iName').value.trim())$('iName').value=sc.name;$('pItem').textContent='Etiqueta de báscula: precio leído del código.'+(approx?' '+approx+'.':'');renderSug();calc();return}
   $('pItem').textContent='Código leído. Buscando en Open Food Facts…';lookupOnline(code);
 }
 $('scanManual').onclick=()=>{const tg=scanTarget;stopScan();if(tg==='code'){$('iCode').focus();return}openItem({msg:'Busca el producto por nombre o escribe el código.',focus:'iName'})};
@@ -841,7 +845,7 @@ function parseLabel(lines){
   prices.sort((a,b)=>b.h-a.h);
   const main=prices[0]||null;
   const perKg=main&&main.kg?main:prices.find(p=>p.kg)||null;
-  const skip=/precio|€|eur\b|iva|oferta|unidad|kg\b|^\W*$|ahorro|club|\d{5,}|\d+\s?(ml|g|l|cl)\b|=|s\.?a\.|avda|av de|transici|alcobendas|envasado|variedad|calibre|categor|origen|consumir|lote|peso|importe/i;
+  const skip=/precio|€|eur\b|iva|oferta|unidad|kg\b|^\W*$|ahorro|club|\d{5,}|\d+\s?(ml|g|l|cl)\b|=|s\.?a\.|avda|av de|transici|alcobendas|envasado|variedad|calibre|categor|origen|consumir|lote|peso|importe|caducidad|fecha|envasad|alcobendas|\d{2}[./]\d{2}[./]\d{2,4}/i;
   const isBrandOnly=t=>/^\W*carrefour\W*$/i.test(t);
   const cands=lines.filter(l=>(!main||l.y<main.y+main.h)&&l!==main&&!skip.test(l.t)&&!isBrandOnly(l.t)&&/[a-záéíóúñ]{3,}/i.test(l.t)&&l.conf>45).sort((a,b)=>a.y-b.y);
   const upper=cands.filter(l=>{const L=l.t.replace(/[^\p{L}]/gu,'');return L.length>=6&&L.replace(/[^\p{Lu}]/gu,'').length/L.length>.7&&/\s/.test(l.t.trim())});
@@ -865,25 +869,68 @@ function matchKnownName(n){
   if(!best)for(const r of CAT){const sc=score(r[0]);if(sc>bs){bs=sc;best={name:r[0]}}}
   return best;
 }
+/* ---- lectura nativa con ML Kit (solo APK): más fiable que la del navegador ---- */
+const capP=n=>window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()&&window.Capacitor.Plugins&&window.Capacitor.Plugins[n];
+function rawScaled(img,max){const k=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c}
+const LBL_KEY=/importe|precio|peso|neto|carrefour|kg|€|caducidad|envasado|granel/i;
+function lineScore(L){let s=0;for(const l of L){s+=(l.t.match(/[a-záéíóúñ]/gi)||[]).length;if(LBL_KEY.test(l.t))s+=25}return s}
+async function nativeRead(img){
+  const T=capP('CapacitorPluginMlKitTextRecognition');if(!T)return null;
+  const b64=rawScaled(img,2000).toDataURL('image/jpeg',.9).split(',')[1];
+  let code=null;
+  const B=capP('BarcodeScanner'),FS=capP('Filesystem');
+  if(B&&FS){try{const f=await FS.writeFile({path:'etiqueta.jpg',data:b64,directory:'CACHE'});
+    const r=await B.readBarcodesFromImage({path:f.uri,formats:['EAN_13','EAN_8','UPC_A','UPC_E','CODE_128','ITF']});
+    const bc=(r&&r.barcodes||[]).map(x=>x.rawValue).filter(Boolean);code=bc.find(x=>/^\d{13}$/.test(x))||bc[0]||null}catch(e){}}
+  let best=null;
+  for(const rot of [0,90,270]){const res=await T.detectText({base64Image:b64,rotation:rot});
+    const L=[];for(const b of (res&&res.blocks)||[])for(const l of b.lines||[]){const bb=l.boundingBox||{};L.push({t:String(l.text||'').trim(),h:(bb.bottom-bb.top)||0,y:bb.top||0,conf:90})}
+    const sc=lineScore(L);if(!best||sc>best.sc)best={L,sc};if(sc>=60&&L.some(l=>LBL_KEY.test(l.t)))break}
+  return {code,lines:best?best.L:[]}}
+/* ---- etiquetas de báscula: precio/kg y peso a partir del importe ---- */
+const eanOk=c=>{if(!/^\d{13}$/.test(c))return false;let s=0;for(let i=0;i<12;i++)s+=(+c[i])*(i%2?3:1);return (10-s%10)%10===+c[12]};
+function scaleFromText(lines){const t=lines.map(l=>l.t).join('\n');const re=/(2\d{6})\D{0,4}(\d{6})/g;let m;while((m=re.exec(t))){const c=m[1]+m[2];if(eanOk(c))return c}return null}
+function matchGrams(imp,pk){const g0=Math.round(imp/pk*1000);for(const d of [0,1,-1,2,-2,3,-3,4,-4,5,-5]){const g=g0+d;if(g>0&&r2(pk*g/1000)===imp)return g}return null}
+function scaleNumbers(lines,imp){
+  const t=lines.map(l=>l.t).join('\n');
+  const ws=[...t.matchAll(/(\d{1,2})\s?[,.]\s?(\d{3})\s*(k\s?g|kg|k|g)?/gi)].map(m=>({kg:parseFloat(m[1]+'.'+m[2]),k:!!m[3]})).filter(x=>x.kg>0.005&&x.kg<20);
+  const ps=[...t.matchAll(/(\d{1,3})\s?[,.]\s?(\d{2})(?!\d)/g)].map(m=>parseFloat(m[1]+'.'+m[2])).filter(v=>v>0.1&&v<200&&Math.abs(v-imp)>0.004);
+  for(const p of ps)for(const w of ws)if(r2(p*w.kg)===imp)return {perKg:p,grams:Math.round(w.kg*1000)};
+  for(const p of ps){const g=matchGrams(imp,p);if(g&&ws.some(w=>Math.abs(w.kg*1000-g)<=3))return {perKg:p,grams:g}}
+  for(const p of ps){const g=matchGrams(imp,p);if(g&&g>=20&&g<=15000&&ps.length<=3)return {perKg:p,grams:g,guess:true}}
+  const w=ws.find(x=>x.k)||null;
+  if(w){const pk=r2(imp/w.kg);if(pk>0.2&&pk<200)return {perKg:pk,grams:Math.round(w.kg*1000),approx:r2(pk*w.kg)!==imp}}
+  return null}
+function fillScale(code,sn){const imp=scalePrice(code);
+  if(sn&&sn.perKg&&sn.grams&&r2(sn.perKg*sn.grams/1000)===imp){setMode('kg');$('iKg').value=sn.perKg.toFixed(2).replace('.',',');$('iGr').value=sn.grams;calc();return 'precio/kg y peso'}
+  setMode('unit');$('iPrice').value=imp.toFixed(2).replace('.',',');
+  if(sn&&sn.perKg&&sn.grams){$('note').hidden=false;$('note').textContent='≈ '+fkg(sn.grams)+' a '+eur.format(sn.perKg)+'/kg'}
+  return null}
 async function readLabel(file){
   const msg=$('ocrMsg');msg.hidden=false;msg.className='calc';msg.textContent='Leyendo la etiqueta… (la primera vez tarda unos segundos)';
   $('labelBtn').disabled=true;
   try{
     const url=URL.createObjectURL(file);
     const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
-    const code=await decode(file).catch(()=>null);
-    if(code&&!$('iCode').value.trim()&&/^\d{8,14}$/.test(code))$('iCode').value=code;
+    let lines=null,code=null;
+    if(capP('CapacitorPluginMlKitTextRecognition')){msg.textContent='Leyendo la etiqueta…';
+      try{const n=await withTimeout(nativeRead(img),25000,'leer');if(n){lines=n.lines;code=n.code}}catch(e){lines=null}}
+    if(!code)code=await decode(file).catch(()=>null);
     const t0=Date.now();
     ocrProgress=m=>{if(m.status==='error'){msg.textContent='Error al preparar la lectura: '+String(m.error&&m.error.message||m.error).slice(0,80);return}
       const st=OCR_STEP[m.status];if(st)msg.textContent=st+(m.progress&&m.progress<1?' '+Math.round(m.progress*100)+' %':'')+'…'};
-    const w=await withTimeout(getOCR(),45000,'preparar');
-    const lines=await withTimeout(ocrLines(w,img),60000,'leer');
+    if(!lines||!lines.length){const w=await withTimeout(getOCR(),45000,'preparar');lines=await withTimeout(ocrLines(w,img),60000,'leer')}
+    const tcode=scaleFromText(lines);
+    if(tcode&&(!code||!isScale(code)&&code.length!==13))code=tcode;
+    if(code&&!$('iCode').value.trim()&&/^\d{8,14}$/.test(code))$('iCode').value=code;
     URL.revokeObjectURL(url);
     const r=parseLabel(lines),got=[];
     const code0=$('iCode').value.trim(),scale=isScale(code0);
     if(r.name){const m=matchKnownName(r.name);$('iName').value=m?m.name:r.name;if(m&&m.listId)listLink=m.listId;got.push('nombre')}
-    if(scale){setMode('unit');$('iPrice').value=scalePrice(code0).toFixed(2).replace('.',',');got.push('importe de la báscula'+(r.grams?' ('+fkg(r.grams)+')':''));
-      if(!r.name){const sc=getScale(code0);if(sc){$('iName').value=sc.name;got.push('producto')}}}
+    if(scale){let sn=scaleNumbers(lines,scalePrice(code0));const sc=getScale(code0);
+      if(!sn&&sc&&sc.perKg){const g=matchGrams(scalePrice(code0),sc.perKg);if(g)sn={perKg:sc.perKg,grams:g}}
+      const how=fillScale(code0,sn);got.push('importe de la báscula'+(how?', '+how:''));
+      if(!r.name&&sc){$('iName').value=sc.name;got.push('producto')}}
     else if(r.isKg&&r.perKg){setMode('kg');$('iKg').value=r.perKg.toFixed(2).replace('.',',');got.push('precio por kg');$('iGr').focus()}
     else if(r.price!=null){setMode('unit');$('iPrice').value=r.price.toFixed(2).replace('.',',');got.push('precio')}
     if($('iCode').value.trim())got.push('código');
