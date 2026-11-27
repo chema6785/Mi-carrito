@@ -368,6 +368,25 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </form>
 </div>
 
+<div class="scrim" id="sAcc" role="dialog" aria-modal="true" aria-labelledby="tAcc">
+  <div class="sheet">
+    <h2 id="tAcc">Tu cuenta</h2>
+    <div id="accOff">
+      <p>Es opcional. Si entras con Google:</p>
+      <ul style="margin:6px 0 14px;padding-left:20px;color:var(--mute);font-size:15px"><li>tus precios, listas, compras y tickets se guardan solos en la nube;</li><li>si reinstalas o cambias de móvil, entras y lo recuperas todo;</li><li>en la lista familiar sigues siendo tú aunque cambies de móvil.</li></ul>
+      <button type="button" class="btn ghost photo" id="accLogin" style="gap:10px"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.8h3.6c2-1.9 3.3-4.7 3.3-8.1z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.8c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.9A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7H2.1a11 11 0 0 0 0 10z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7l3.7 2.9C6.7 7.3 9.1 5.4 12 5.4z"/></svg>Entrar con Google</button>
+    </div>
+    <div id="accOn" hidden>
+      <div style="display:flex;gap:12px;align-items:center;margin:4px 0 12px"><img id="accPic" alt="" width="48" height="48" style="border-radius:50%;object-fit:cover" referrerpolicy="no-referrer"><div><b id="accName"></b><div id="accMail" style="color:var(--mute);font-size:14px"></div></div></div>
+      <div class="calc" id="accSync"></div>
+      <button type="button" class="btn ghost photo" id="accSave" style="margin-top:10px">Guardar ahora en la nube</button>
+      <button type="button" class="linkbtn" id="accOut" style="display:block;margin-top:6px">Cerrar sesión</button>
+      <button type="button" class="linkbtn" id="accDel" style="display:block;color:var(--warn)">Borrar mi cuenta y lo guardado en la nube</button>
+    </div>
+    <p style="font-size:13px;color:var(--mute);margin-top:12px">Solo se usa tu nombre, correo y foto para identificarte. <a href="privacidad.html" target="_blank" rel="noopener" style="color:inherit">Política de privacidad</a></p>
+    <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="accClose">Cerrar</button></div>
+  </div>
+</div>
 <div class="scrim" id="sNewTk" role="dialog" aria-modal="true" aria-labelledby="tNewTk">
   <div class="sheet">
     <h2 id="tNewTk">Añadir compra con el ticket</h2>
@@ -445,6 +464,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <h2 id="tMenu">Menú</h2>
     <div class="menu">
       <button type="button" id="mHelp"><span>❓</span><span>Cómo funciona<small>Explicación de todas las funciones</small></span></button>
+      <button type="button" id="mAcc"><span>👤</span><span><b id="mAccTx" style="font-weight:inherit">Entrar con Google</b><small id="mAccSub">Guarda tus datos en la nube (opcional)</small></span></button>
       <button type="button" id="mBackup"><span>💾</span><span>Copia de seguridad<small>Guarda o recupera tus códigos, precios y listas</small></span></button>
       <button type="button" id="mTheme"><span>🎨</span><span>Colores de la app<small>Elige el tema que más te guste</small></span></button>
       <button type="button" id="mStore"><span>🏪</span><span>Cambiar de tienda<small>Cada tienda tiene su lista y sus precios</small></span></button>
@@ -599,7 +619,7 @@ let editing=null,lastRemoved=null,newId=null,askCb=null,mode='unit',listLink=nul
 
 function parseMoney(s){s=String(s).trim().replace(/[€\s]/g,'');if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)&&n>=0?Math.round(n*100)/100:NaN}
 let tT=null,undoAction=null;function toast(t,undo,fn){undoAction=fn||null;$('toast').textContent=t;$('undo').hidden=!undo;$('tw').classList.add('show');clearTimeout(tT);tT=setTimeout(()=>$('tw').classList.remove('show'),undo?6000:3000)}
-function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync()}
+function save(){put('cart.items',items);put('cart.budget',budget);put('cart.known',known);put('cart.shop',shop);put('cart.byname',byName);put('cart.stores',stores);put('cart.store',store);put('cart.history',history);if(typeof scheduleSync==='function')scheduleSync();if(typeof scheduleCloud==='function')scheduleCloud()}
 const r2=n=>Math.round(n*100)/100;
 const OFF={'2x1':['2x1',2,1],'3x2':['3x2',3,1],'2a50':['2ª −50 %',2,.5],'2a70':['2ª −70 %',2,.7]};
 function offerDisc(o,p,q){const d=OFF[o];return d?Math.floor(q/d[1])*p*d[2]:0}
@@ -1582,7 +1602,7 @@ function renderFam(){$('famBtn').classList.toggle('on',famOn);$('famBtn').setAtt
 $('famBtn').onclick=()=>{if(!listCode)return;if(famOn)ask({title:'¿Dejar de compartir tus compras?',text:'Los demás dejarán de ver tus compras en el gasto de la casa.',ok:'Dejar de compartir'},()=>famSet(false));else famSet(true)};
 $('histSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;famView=b.dataset.v;put('cart.famview',famView);renderHistory();if(famView==='casa')famPull()};
 $('histUl').addEventListener('click',e=>{const b=e.target.closest('[data-hdel]');if(!b)return;const h=history.find(x=>x.id===b.dataset.hdel);if(!h)return;
-  ask({title:'¿Borrar esta compra?',text:new Date(h.t).toLocaleDateString('es-ES')+' en '+h.store+' · '+eur.format(spent(h))+'. Dejará de contar en el gasto.',ok:'Borrar'},()=>{history=history.filter(x=>x!==h);save();famPush(h,true);renderHistory();toast('Compra borrada')})});
+  ask({title:'¿Borrar esta compra?',text:new Date(h.t).toLocaleDateString('es-ES')+' en '+h.store+' · '+eur.format(spent(h))+'. Dejará de contar en el gasto.',ok:'Borrar'},()=>{history=history.filter(x=>x!==h);hdel.push(h.id);put('cart.hdel',hdel);save();famPush(h,true);renderHistory();toast('Compra borrada')})});
 /* ---- Supabase: precios compartidos y lista compartida ---- */
 const SB_URL='https://rtygmlehoyvkozeihjnk.supabase.co',SB_KEY='sb_publishable_9Os1C-lYJDa9u1j_I8YUBQ_q8LXX1A2';
 const sbOn=()=>!!(SB_URL&&SB_KEY);
@@ -1669,10 +1689,10 @@ function offerJoin(code){if(!code||!sbOn()||listCode===code)return;
   if(and)$('openNative').href='intent://unir/'+code+'#Intent;scheme=micarrito;package=es.micarrito.app;S.browser_fallback_url='+encodeURIComponent(location.origin+location.pathname+'#unir-'+code)+';end';
   toast(and?'Si tienes la app instalada, pulsa «Abrir en la app». Si no, pulsa «Unirme».':'Pulsa «Unirme» para ver la lista compartida')}
 function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m)return;
-  try{window.history.replaceState(null,'',location.pathname)}catch(e){}
+  try{window.window.history.replaceState(null,'',location.pathname)}catch(e){}
   offerJoin(m[1])}
 /* la APK recibe los enlaces micarrito://unir/CODIGO */
-function handleAppUrl(u){const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
+function handleAppUrl(u){if(/^micarrito:\/\/login/i.test(String(u||''))){gotTokens(u);return}const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
 try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
   if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
@@ -1680,14 +1700,14 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList(
 addEventListener('online',()=>{syncList();flushPrices();famFlush()});
 
 /* ---- copia de seguridad ---- */
-function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,mydata:load('cart.mydata',null)}}
+function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,hdel,mydata:load('cart.mydata',null)}}
 function openBackup(){
   const nk=Object.keys(known).length,nn=Object.keys(byName).length;
   $('pBak').textContent=`Tienes ${nk} ${nk===1?'código guardado':'códigos guardados'}, ${nn} ${nn===1?'precio actualizado':'precios actualizados'} y ${shop.length} en tus listas.`;
   $('bakText').value=JSON.stringify(backupData());$('bakMsg').textContent='';$('bakMsg').className='calc';
   $('bakPasteText').hidden=true;$('bakPaste').textContent='Desde texto pegado';$('sBak').classList.add('on');
 }
-const closeAll=()=>['sMenu','sHelp','sAbout','sTheme'].forEach(id=>$(id).classList.remove('on'));
+const closeAll=()=>['sMenu','sHelp','sAbout','sTheme','sAcc'].forEach(id=>$(id).classList.remove('on'));
 $('menuBtn').onclick=()=>$('sMenu').classList.add('on');
 $('menuClose').onclick=closeAll;$('helpClose').onclick=closeAll;$('aboutClose').onclick=closeAll;
 ['fMenu','fHelp','fAbout','fTheme'].forEach(id=>$(id).onsubmit=e=>e.preventDefault());
@@ -1729,6 +1749,50 @@ $('updLater').onclick=()=>{put('cart.updskip',$('updGo').dataset.v||'');$('sUpd'
 $('updGo').onclick=()=>{$('sUpd').classList.remove('on');toast('Descargando… cuando termine, ábrela e instálala');location.href=APK_URL};
 $('fUpd').onsubmit=e=>e.preventDefault();
 $('checkUpd').onclick=()=>checkUpdate(true);
+/* ---- cuenta con Google (opcional): tus datos guardados en la nube y la familia unida por cuenta ---- */
+let auth=load('cart.auth',null),cloudT=null,cloudBusy=false,cloudAt=load('cart.cloudat',0);
+const authH=()=>({'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+auth.at});
+function loginGoogle(){const redir=isNative()?'micarrito://login':location.origin+location.pathname;
+  toast('Abriendo Google…');location.href=SB_URL+'/auth/v1/authorize?provider=google&redirect_to='+encodeURIComponent(redir)}
+async function gotTokens(frag){const p=new URLSearchParams(String(frag||'').replace(/^.*?#/,''));
+  if(p.get('error')){toast('No se pudo entrar: '+(p.get('error_description')||p.get('error')).replace(/\+/g,' '));return}
+  const at=p.get('access_token'),rt=p.get('refresh_token');if(!at||!rt)return;
+  auth={at,rt,exp:Date.now()+(+p.get('expires_in')||3600)*1000,user:null};
+  try{const r=await fetch(SB_URL+'/auth/v1/user',{headers:authH()});if(!r.ok)throw 0;const u=await r.json(),m=u.user_metadata||{};
+    auth.user={id:u.id,email:u.email||'',name:m.full_name||m.name||'',pic:m.avatar_url||m.picture||''}}catch(e){auth=null;toast('No se pudo completar el acceso');return}
+  put('cart.auth',auth);if(!myName&&auth.user.name){myName=auth.user.name.split(' ')[0];put('cart.myname',myName)}
+  adoptAccountDevice();await cloudPull(true);cloudPush();renderAcc();toast('Has entrado como '+(auth.user.name||auth.user.email))}
+async function token(){if(!auth)return null;if(Date.now()<auth.exp-60000)return auth.at;
+  try{const r=await fetch(SB_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY},body:JSON.stringify({refresh_token:auth.rt})});
+    if(r.status===400||r.status===401){logout(true);return null}if(!r.ok)return null;const j=await r.json();
+    auth.at=j.access_token;auth.rt=j.refresh_token||auth.rt;auth.exp=Date.now()+(j.expires_in||3600)*1000;put('cart.auth',auth);return auth.at}catch(e){return null}}
+/* con cuenta, este móvil usa tu cuenta como identidad: al reinstalar o cambiar de móvil sigues en tu lista familiar */
+function adoptAccountDevice(){if(!auth||!auth.user)return;const nd=auth.user.id;if(device===nd)return;const old=device;device=nd;put('cart.device',nd);
+  if(listCode&&sbOn())sbRpc('join_list',{p_list:listCode,p_device:nd,p_name:myName||'Yo'}).then(()=>sbRpc('leave_list',{p_list:listCode,p_device:old})).then(()=>{if(famOn){famQ=[];const s=Date.now()-400*864e5;for(const h of history)if(h.t>s)famPush(h)}loadMembers()}).catch(()=>{})}
+async function cloudPull(first){if(!auth||!navigator.onLine)return;const at=await token();if(!at)return;
+  try{const r=await fetch(SB_URL+'/rest/v1/user_data?select=data,updated_at&user_id=eq.'+auth.user.id,{headers:authH()});if(!r.ok)return;const rows=await r.json();
+    if(rows[0]&&rows[0].data){const reload=mergeData(rows[0].data);applyByName();save(true);render();if(first&&rows[0].data.history)toast('Datos de tu cuenta recuperados');if(reload)setTimeout(()=>location.reload(),1500)}}catch(e){}}
+async function cloudPush(){if(!auth||cloudBusy||!navigator.onLine)return;cloudBusy=true;
+  try{const at=await token();if(!at)return;const r=await fetch(SB_URL+'/rest/v1/user_data?on_conflict=user_id',{method:'POST',headers:{...authH(),Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({user_id:auth.user.id,data:backupData(),updated_at:new Date().toISOString()})});
+    if(r.ok){cloudAt=Date.now();put('cart.cloudat',cloudAt);renderAcc()}}catch(e){}finally{cloudBusy=false}}
+function scheduleCloud(){try{if(!auth)return}catch(e){return}clearTimeout(cloudT);cloudT=setTimeout(cloudPush,15000)}
+function logout(silent){auth=null;put('cart.auth',null);renderAcc();if(!silent)toast('Sesión cerrada. Tus datos siguen en este móvil.')}
+function renderAcc(){const on=!!(auth&&auth.user);$('accOff').hidden=on;$('accOn').hidden=!on;$('mAccTx').textContent=on?(auth.user.name||auth.user.email):'Entrar con Google';
+  $('mAccSub').textContent=on?'Tus datos se guardan en la nube':'Guarda tus datos en la nube (opcional)';
+  if(on){$('accName').textContent=auth.user.name||'';$('accMail').textContent=auth.user.email;$('accPic').src=auth.user.pic||'icon-192.png';
+    $('accSync').textContent=cloudAt?'Guardado en la nube: '+new Date(cloudAt).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'Aún no se ha guardado en la nube'}}
+$('mAcc').onclick=()=>{closeAll();renderAcc();$('sAcc').classList.add('on')};
+$('accClose').onclick=()=>$('sAcc').classList.remove('on');
+$('accLogin').onclick=loginGoogle;
+$('accSave').onclick=async()=>{await cloudPush();toast(cloudAt>Date.now()-5000?'Guardado en la nube':'No he podido guardarlo ahora')};
+$('accOut').onclick=()=>ask({title:'¿Cerrar sesión?',text:'Tus datos se quedan en este móvil y en la nube. Puedes volver a entrar cuando quieras.',ok:'Cerrar sesión'},()=>{logout();$('sAcc').classList.remove('on')});
+$('accDel').onclick=()=>ask({title:'¿Borrar tu cuenta?',text:'Se borran tu cuenta y todo lo guardado en la nube, y sales de la lista familiar. Lo que hay en este móvil se queda. No se puede deshacer.',ok:'Borrar cuenta'},async()=>{
+  const at=await token();if(!at){toast('Necesitas conexión para borrarla');return}
+  try{const r=await fetch(SB_URL+'/rest/v1/rpc/delete_my_account',{method:'POST',headers:authH(),body:'{}'});if(!r.ok)throw 0;listCode='';put('cart.listcode','');famOn=false;put('cart.famon',false);renderShare();logout(true);$('sAcc').classList.remove('on');toast('Cuenta borrada')}catch(e){toast('No he podido borrarla ahora')}});
+if(/access_token=|error_description=/.test(location.hash)){const h=location.hash;window.history.replaceState(null,'',location.pathname+location.search);gotTokens(h)}
+if(auth){adoptAccountDevice();setTimeout(()=>{cloudPull(false).then(scheduleCloud)},3000)}
+renderAcc();
+
 if(isNative()){$('checkUpd').hidden=false;setTimeout(()=>checkUpdate(false),4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>checkUpdate(false),1500)})}else $('verTxt').textContent='Versión web: se actualiza sola';
 $('mAbout').onclick=()=>{closeAll();$('sAbout').classList.add('on')};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
@@ -1752,18 +1816,24 @@ $('bakSave').onclick=async()=>{
   try{await navigator.clipboard.writeText(JSON.stringify(backupData()));m.textContent='Copia copiada. Pégala en Notas o envíatela por WhatsApp para guardarla.'}
   catch(e){$('bakText').focus();m.className='calc warn';m.textContent='Mantén pulsado el texto de abajo, cópialo y guárdalo donde quieras.'}
 };
+/* junta una copia (archivo o nube) con lo que hay: lo de este móvil manda, las compras se suman */
+let hdel=load('cart.hdel',[]);
+function mergeData(d){let reload=false;
+  known=Object.assign({},d.known||{},known);byName=Object.assign({},d.byName||{},byName);
+  if(!shop.length&&Array.isArray(d.shop)){shop=d.shop;shop.forEach(x=>{if(!x.store)x.store=store})}
+  if(!budget&&d.budget)budget=d.budget;
+  if(!items.length&&Array.isArray(d.items))items=d.items;
+  if(Array.isArray(d.stores))for(const x of d.stores)if(!stores.includes(x))stores.push(x);
+  if(d.mydata&&Array.isArray(d.mydata.cat)&&!load('cart.mydata',null)){put('cart.mydata',d.mydata);reload=true}
+  if(d.tkAlias&&typeof d.tkAlias==='object'){tkAlias=Object.assign({},d.tkAlias,tkAlias);put('cart.tkalias',tkAlias)}
+  if(Array.isArray(d.hdel)){for(const id of d.hdel)if(!hdel.includes(id))hdel.push(id);hdel=hdel.slice(-500);put('cart.hdel',hdel);history=history.filter(h=>!hdel.includes(h.id))}
+  if(Array.isArray(d.history)){const ids=new Set(history.map(h=>h.id));for(const h of d.history)if(!ids.has(h.id)&&!hdel.includes(h.id))history.push(h);history.sort((a,b)=>b.t-a.t)}
+  return reload}
 function restore(txt){
   const m=$('bakMsg');
   try{const d=JSON.parse(String(txt).trim());if(!d||d.app!=='mi-carrito')throw 0;
     const before=Object.keys(known).length;
-    known=Object.assign({},d.known||{},known);byName=Object.assign({},d.byName||{},byName);
-    if(!shop.length&&Array.isArray(d.shop)){shop=d.shop;shop.forEach(x=>{if(!x.store)x.store=store})}
-    if(!budget&&d.budget)budget=d.budget;
-    if(!items.length&&Array.isArray(d.items))items=d.items;
-    if(Array.isArray(d.stores))for(const x of d.stores)if(!stores.includes(x))stores.push(x);
-    if(d.mydata&&Array.isArray(d.mydata.cat)){put('cart.mydata',d.mydata);setTimeout(()=>location.reload(),1800)}
-    if(d.tkAlias&&typeof d.tkAlias==='object'){tkAlias=Object.assign({},d.tkAlias,tkAlias);put('cart.tkalias',tkAlias)}
-    if(Array.isArray(d.history)){const ids=new Set(history.map(h=>h.id));for(const h of d.history)if(!ids.has(h.id))history.push(h);history.sort((a,b)=>b.t-a.t)}
+    if(mergeData(d))setTimeout(()=>location.reload(),1800);
     applyByName();
     save();render();m.className='calc';m.textContent='Copia recuperada: '+(Object.keys(known).length-before)+' códigos nuevos añadidos. Lo que ya tenías se mantiene.';
     $('pBak').textContent='';openBackup();m.textContent='Copia recuperada. Lo que ya tenías se mantiene.';
