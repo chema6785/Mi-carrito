@@ -272,7 +272,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
       <label for="iName">Producto</label>
       <input id="iName" autocomplete="off" placeholder="Escribe para buscar en tus compras">
       <div id="sugl" hidden></div>
-      <div class="sugt" id="sugt">De tus tickets de Carrefour</div><div class="sug" id="sug"></div>
+      <div class="sugt" id="sugt">De tus tickets de Carrefour</div><div class="sug" id="sug"></div><div id="sugs"></div>
       <div class="seg" role="group" aria-label="Cómo se vende"><button type="button" id="mUnit" class="on">Por unidad</button><button type="button" id="mKg">Por peso</button></div>
       <div id="unitF">
         <div class="two">
@@ -612,6 +612,19 @@ $('sug').onclick=e=>{const b=e.target.closest('button');if(!b)return;const r=CAT
   if(!sc){$('note').hidden=!r[2];$('note').textContent=r[2]?'Este precio cambia según el peso o las ofertas: compruébalo con la etiqueta.':''}
   renderSug();$('iPrice').focus();$('iPrice').select()};
 $('iName').addEventListener('input',renderSug);
+/* lo que otros han guardado (también lo metido a mano o de báscula) */
+let shT=null,shRes=[];
+$('iName').addEventListener('input',()=>{clearTimeout(shT);const q=$('iName').value.trim();if(q.length<3||!sbOn()||!navigator.onLine){$('sugs').innerHTML='';shRes=[];return}
+  shT=setTimeout(async()=>{const r=await sbRpc('search_products',{p_q:q}).catch(()=>null);if($('iName').value.trim()!==q)return;
+    const by={};for(const x of (Array.isArray(r)?r:[])){const k=norm(x.name||'')+'|'+x.unit;const here=norm(x.store)===norm(store);const o=by[k];if(!o||(here&&!o.here)||(here===o.here&&new Date(x.last_at)>new Date(o.last_at)))by[k]={...x,here}}
+    const loc=new Set(CAT.map(c=>norm(c[0])));shRes=Object.values(by).filter(x=>!loc.has(norm(x.name||''))).sort((a,b)=>b.here-a.here).slice(0,6);
+    $('sugs').innerHTML=shRes.length?'<div class="sugt">Guardado por otros</div><div class="sug">'+shRes.map((x,i)=>`<button type="button" data-s="${i}"><span>${esc(x.name)}<small>${x.here?'En '+esc(x.store):'Visto en '+esc(x.store)}${x.unit==='kg'?' · por kg':''}</small></span><b>${eur.format(Number(x.price))}${x.unit==='kg'?'/kg':''}</b></button>`).join('')+'</div>':''},500)});
+$('sugs').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shRes[+b.dataset.s];if(!x)return;
+  const sc=isScale($('iCode').value.trim());$('iName').value=x.name;if(/^\d{8,14}$/.test(x.code)&&!$('iCode').value.trim())$('iCode').value=x.code;
+  const pv=Number(x.price).toFixed(2).replace('.',',');
+  if(x.unit==='kg'){if(!sc)setMode('kg');$('iKg').value=pv}else if(!sc)$('iPrice').value=pv;
+  $('note').hidden=false;$('note').textContent=x.here?'Precio guardado por otra persona en '+x.store+': compruébalo con la etiqueta.':'Precio visto en '+x.store+', puede ser distinto aquí.';
+  $('sugs').innerHTML='';renderSug();calc();$(x.unit==='kg'?'iGr':'iPrice').focus()};
 $('sugl').onclick=e=>{const b=e.target.closest('button');if(!b)return;const x=shop.find(s=>s.id===b.dataset.l);if(!x)return;
   listLink=x.id;$('iName').value=x.name;const k=byName[norm(x.name)];
   if(x.price!=null&&!isScale($('iCode').value.trim())){setMode('unit');$('iPrice').value=(k?k.price:x.price).toFixed(2).replace('.',',')}
@@ -980,7 +993,9 @@ $('fItem').onsubmit=e=>{
   if(code&&isScale(code)){const o=getScale(code)||{};known[scaleKey(code)]={name,perKg:rec.mode==='kg'?rec.perKg:o.perKg};rec.scale=true}
   else if(code){const prev=known[code]||{};known[code]=setPrice(Object.assign(prev,rec.mode==='kg'?{name,mode:'kg',perKg:rec.perKg}:{name,mode:'unit'}),rec.mode==='kg'?rec.perKg:rec.price)}
   if(name&&rec.mode==='unit'&&!isScale(code)){const k=norm(name);byName[k]=setPrice(byName[k]||{},rec.price)}
-  if(code&&!isScale(code)&&/^\d{8,14}$/.test(code))queuePrice({p_code:code,p_name:name,p_store:store,p_price:rec.mode==='kg'?rec.perKg:rec.price,p_unit:rec.mode==='kg'?'kg':'unit',p_device:device});
+  {const sk=shareKey(code,name),pv=rec.mode==='kg'?rec.perKg:rec.price;
+   /* con código: precio tal cual; báscula: solo el €/kg (el importe depende del peso); a mano: por nombre */
+   if(sk&&!(isScale(code)&&rec.mode!=='kg'))queuePrice({p_code:sk,p_name:name,p_store:store,p_price:pv,p_unit:rec.mode==='kg'?'kg':'unit',p_device:device})}
   let msg;
   if(editing){const it=items.find(i=>i.id===editing);Object.assign(it,rec);if(rec.mode!=='kg')it.qty=qty;msg='Artículo actualizado'}
   else{
@@ -1204,7 +1219,7 @@ function searchPublic(q){
     const res=[],seen=new Set();
     const byCode={};for(const r of (Array.isArray(sh)?sh:[])){(byCode[r.code]=byCode[r.code]||[]).push(r)}
     for(const [code,rs] of Object.entries(byCode)){const here=rs.find(r=>norm(r.store)===norm(store)),r=here||rs.sort((x,y)=>new Date(y.last_at)-new Date(x.last_at))[0];
-      seen.add(code);res.push({code,name:r.name,price:r.unit==='kg'?null:Number(r.price),src:here?'Compartido en '+r.store:'Compartido · visto en '+r.store+' a '+eur.format(Number(r.price))})}
+      seen.add(code);const kg=r.unit==='kg',pp=eur.format(Number(r.price))+(kg?'/kg':'');res.push({code:/^\d+$/.test(code)?code:'',name:r.name,price:kg?null:Number(r.price),src:here?'Compartido en '+r.store+(kg?' · '+pp:''):'Compartido · visto en '+r.store+' a '+pp})}
     for(const p of [...((a&&a.products)||[]),...((b&&b.products)||[])]){const n=p.product_name_es||p.product_name;if(!n||!p.code||seen.has(p.code))continue;seen.add(p.code);if(!offc[p.code])offSave(p.code,p);
       res.push({code:p.code,name:[n,p.brands?String(p.brands).split(',')[0].trim():'',p.quantity||''].filter(Boolean).join(' · ').slice(0,80),price:null,src:'Open Food Facts'})}
     pubCache[q]=res.slice(0,10);if($('lq').value.trim()===q)showPub(q,pubCache[q]);
@@ -1410,6 +1425,23 @@ async function sbRpc(fn,args){
     if(!r.ok)throw new Error(r.status);const tx=await r.text();return tx?JSON.parse(tx):null}finally{clearTimeout(t)}
 }
 let outbox=load('cart.outbox',[]),flushing=false;
+/* clave compartida: código de barras, «plu:» de báscula (por tienda) o «n:» + nombre para lo metido a mano */
+function shareKey(code,name){if(code&&/^\d{8,14}$/.test(code)&&!isScale(code))return code;if(code&&isScale(code))return 'plu:'+code.slice(0,7);
+  const k=norm(name||'').replace(/[^a-z0-9ñ ]/g,' ').replace(/\s+/g,' ').trim();return /[a-zñ]{3,}/.test(k)?'n:'+k.slice(0,56):''}
+/* una sola vez: sube todo lo que ya tenías guardado en el móvil para que lo vean los demás */
+async function backfillShared(){if(!sbOn()||load('cart.bf1',false)||!navigator.onLine)return;
+  const nice={};const addN=n=>{if(n){const k=norm(n);if(!nice[k])nice[k]=n}};
+  history.forEach(h=>h.items.forEach(i=>addN(i[0])));items.forEach(i=>addN(i.name));
+  try{(Array.isArray(shop)?shop:[]).forEach(x=>addN(x&&x.name))}catch(e){}
+  const rows=[],push=(code,name,st,p,unit)=>{if(code&&st&&p>0)rows.push({p_code:code,p_name:name,p_store:st,p_price:p,p_unit:unit,p_device:device})};
+  for(const [k,r] of Object.entries(byName)){const nm=nice[k]||k.replace(/^./,c=>c.toUpperCase()),sk=shareKey('',nm);if(!sk||!r)continue;
+    if(r.prices)for(const [st,o] of Object.entries(r.prices))push(sk,nm,st,o&&o.p,'unit');else if(r.price)push(sk,nm,'Carrefour',r.price,'unit')}
+  for(const [c,r] of Object.entries(known)){if(!r)continue;
+    if(c.startsWith('plu:')){const m=c.match(/^plu:(.+):(2\d{6})$/);if(m&&r.perKg)push('plu:'+m[2],r.name||'',m[1],r.perKg,'kg');continue}
+    if(!/^\d{8,14}$/.test(c)||isScale(c))continue;
+    if(r.mode==='kg'){if(r.perKg)push(c,r.name||'',store,r.perKg,'kg');continue}
+    if(r.prices)for(const [st,o] of Object.entries(r.prices))push(c,r.name||'',st,o&&o.p,'unit');else if(r.price)push(c,r.name||'','Carrefour',r.price,'unit')}
+  try{for(let i=0;i<rows.length;i+=400)await sbRpc('add_prices',{p:rows.slice(i,i+400)});put('cart.bf1',true)}catch(e){}}
 function queuePrice(a){if(!sbOn())return;outbox.push(a);if(outbox.length>300)outbox=outbox.slice(-300);put('cart.outbox',outbox);flushPrices()}
 async function flushPrices(){if(flushing||!outbox.length||!navigator.onLine)return;flushing=true;
   try{while(outbox.length){await sbRpc('add_price',outbox[0]);outbox.shift();put('cart.outbox',outbox)}}catch(e){}finally{flushing=false}}
@@ -1571,7 +1603,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-applyBars(tema0);render();renderShare();syncList();flushPrices();checkJoinLink();if(listCode&&sbOn())loadMembers();
+applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
   setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}
