@@ -346,9 +346,23 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <div class="calc" id="endCalc">Si lo pones, te aviso si en caja te han cobrado algo de más.</div>
     <button type="button" class="btn ghost photo" id="tkBtn" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Escanear el ticket de caja</button>
     <input type="file" id="tkCam" accept="image/*" capture="environment" hidden>
+    <button type="button" class="btn ghost photo" id="tkPdfBtn" style="margin-top:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 11v6m-3-3 3 3 3-3"/></svg>Subir el ticket en PDF (app Carrefour)</button>
+    <input type="file" id="tkPdfIn" accept="application/pdf,.pdf" hidden>
     <div id="tkRes"></div>
     <div class="sbtns"><button type="button" class="btn ghost" id="endNo">Cancelar</button><button class="btn primary">Guardar compra</button></div>
   </form>
+</div>
+
+<div class="scrim" id="sTkH" role="dialog" aria-modal="true" aria-labelledby="tTkH">
+  <div class="sheet">
+    <h2 id="tTkH">Comprobar con el ticket</h2>
+    <p id="pTkH"></p>
+    <p style="font-size:14px;color:var(--mute)">En la app de Carrefour abre el ticket de esa compra, descárgalo o compártelo en PDF y elígelo aquí.</p>
+    <button type="button" class="btn ghost photo" id="tkHBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M12 11v6m-3-3 3 3 3-3"/></svg>Elegir el PDF del ticket</button>
+    <input type="file" id="tkHIn" accept="application/pdf,.pdf" hidden>
+    <div id="tkResH"></div>
+    <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="tkHNo">Cerrar</button></div>
+  </div>
 </div>
 
 <div class="scrim" id="sShare" role="dialog" aria-modal="true" aria-labelledby="tShare">
@@ -1240,7 +1254,10 @@ function endCalc(){const t=cartTotal(),p=parseMoney($('iPaid').value),c=$('endCa
   else c.textContent='Coincide con la app.'}
 $('iPaid').addEventListener('input',endCalc);
 /* ---- escanear el ticket de caja ---- */
-let tkLines=[],tkTotal=null;
+let tkLines=[],tkTotal=null,tkCtx=null,tkPdf=false;
+/* tkCtx: null = carrito actual; si no, una compra guardada de «Tus compras» */
+const tkList=()=>tkCtx?tkCtx.items.map(i=>({name:i[0],tot:i[1],qty:i[2]})):items.map(it=>({it,name:it.name,tot:lineTotal(it),qty:it.qty}));
+const tkEl=()=>$(tkCtx?'tkResH':'tkRes');
 const TK_SKIP=/total|subtotal|iva|base imp|entregad|cambio|tarjeta|efectivo|visa|mastercard|importe|cuota|nif|cif|factura|ticket|caja|operaci|autoriz|gracias|devoluc|cliente|club|cheque|saldo|acumul|puntos|fecha|hora|tel[eé]f|www|c\/|avda|s\.a\.|descuento total|n[ºo] art|art[ií]culos|redondeo/i;
 function parseReceipt(text){
   const out=[];let total=null;
@@ -1263,31 +1280,32 @@ function compareReceipt(){
   const G=[];
   for(const l of tkLines.filter(l=>!l.disc)){const k=tkWords(l.name).join(' ');const g=G.find(g=>g.k===k);if(g){g.amount=r2(g.amount+l.amount);g.qty+=l.qty;g.n++}else G.push({k,name:l.name,amount:l.amount,qty:l.qty,n:1,dsc:0})}
   const disc=[];
-  for(const d of tkLines.filter(l=>l.disc)){let best=null,bs=0;for(const g of G){const sc=tkScore(g.name,d.name.replace(/\d+\s*%|2a|ud|unidad|dto|descuento/gi,' '));if(sc>bs){bs=sc;best=g}}
+  for(const d of tkLines.filter(l=>l.disc)){let best=null,bs=0;for(const g of G){const dw=tkWords(d.name.replace(/\d+\s*%|\b2a\b|\bud\b|unidad|dto|descuento|promo|oferta|cupon|cup[oó]n/gi,' ')),gw=tkWords(g.name);const sc=dw.length?dw.filter(x=>gw.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4)))).length/dw.length:0;if(sc>bs){bs=sc;best=g}}
     if(best&&bs>=.5){best.amount=r2(best.amount+d.amount);best.dsc=r2(best.dsc+d.amount)}else disc.push(d)}
   const used=new Set(),rows=[];
-  for(const it of items){let best=-1,bs=0;
+  for(const it of tkList()){let best=-1,bs=0;
     G.forEach((g,i)=>{if(used.has(i))return;const sc=tkScore(it.name||'',g.name);if(sc>bs){bs=sc;best=i}});
     if(best>=0&&bs>=.5){used.add(best);rows.push({it,l:G[best]})}else rows.push({it,l:null})}
   const extra=G.filter((g,i)=>!used.has(i));
   return {rows,extra,disc}}
 function renderReceipt(){
-  if(!tkLines.length){$('tkRes').innerHTML='';return}
+  if(!tkLines.length){tkEl().innerHTML='';return}
   const {rows,extra,disc}=compareReceipt();
-  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-lineTotal(r.it))>=0.01),miss=rows.filter(r=>!r.l);
+  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01),miss=rows.filter(r=>!r.l);
   let h='<div class="tk">';
+  if(tkTotal!=null){const ap=tkCtx?tkCtx.total:cartTotal(),d=r2(tkTotal-ap);h+=`<div class="r${Math.abs(d)>=0.01?' bad':''}"><span>Total del ticket ${eur.format(tkTotal)}<small>En la app ${eur.format(ap)}</small></span><b${Math.abs(d)<0.01?' class="ok"':''}>${Math.abs(d)<0.01?'Cuadra':(d>0?'+':'')+eur.format(d)}</b></div>`}
   h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':'El ticket coincide con la app'}</h3>`;
   if(!diff.length&&!extra.length)h+=`<div class="ok">${rows.length-miss.length} productos comprobados${miss.length?' · '+miss.length+' no los he encontrado en el ticket':''}.</div>`;
-  for(const r of diff){const d=r2(r.l.amount-lineTotal(r.it));h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(lineTotal(r.it))}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
+  for(const r of diff){const d=r2(r.l.amount-r.it.tot);h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(r.it.tot)}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
   for(const l of extra)h+=`<div class="r bad"><span>${esc(l.name)}<small>Cobrado en el ticket, pero no está en la app${l.qty>1?' ('+l.qty+' uds)':''}</small></span><b>${eur.format(l.amount)}</b></div>`;
-  if(diff.length||extra.length)for(const r of miss)h+=`<div class="r"><span>${esc(r.it.name)}<small>En la app, pero no lo encuentro en el ticket (puede estar mal leído)</small></span><b>${eur.format(lineTotal(r.it))}</b></div>`;
+  if(diff.length||extra.length)for(const r of miss)h+=`<div class="r"><span>${esc(r.it.name)}<small>En la app, pero no lo encuentro en el ticket (puede estar mal leído)</small></span><b>${eur.format(r.it.tot)}</b></div>`;
   if(disc.length)h+=`<div class="r"><span>Descuentos del ticket<small>${disc.map(l=>esc(l.name)).join(', ')}</small></span><b class="ok">${eur.format(r2(disc.reduce((a,l)=>a+l.amount,0)))}</b></div>`;
-  if(diff.length)h+=`<button type="button" class="linkbtn" id="tkFix" style="display:block">Corregir esos precios en la app con los del ticket</button>`;
-  if(extra.length)h+=`<button type="button" class="linkbtn" id="tkAdd" style="display:block">Añadir al carrito lo cobrado que falta (${extra.length})</button>`;
-  h+=`<div style="font-size:12px;color:var(--mute);margin-top:6px">${tkLines.length} líneas leídas. Si el ticket es largo, haz otra foto de la parte que falte.</div></div>`;
-  $('tkRes').innerHTML=h}
+  if(diff.length&&!tkCtx)h+=`<button type="button" class="linkbtn" id="tkFix" style="display:block">Corregir esos precios en la app con los del ticket</button>`;
+  if(extra.length&&!tkCtx)h+=`<button type="button" class="linkbtn" id="tkAdd" style="display:block">Añadir al carrito lo cobrado que falta (${extra.length})</button>`;
+  h+=`<div style="font-size:12px;color:var(--mute);margin-top:6px">${tkLines.length} líneas leídas. ${tkPdf?'Leído del PDF del ticket.':'Si el ticket es largo, haz otra foto de la parte que falte.'}</div></div>`;
+  tkEl().innerHTML=h}
 $('tkBtn').onclick=()=>{$('tkCam').value='';$('tkCam').click()};
-$('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+$('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;if(tkPdf){tkPdf=false;tkLines=[];tkTotal=null}
   const b=$('tkBtn');b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar un poco)';
   try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
     const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});
@@ -1299,16 +1317,45 @@ $('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;
     if(!r.lines.length&&r.total==null){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. Ponlo plano, con luz y que se vea entero o por partes.</span></div></div>'}
   }catch(err){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. La primera vez necesita conexión para preparar la lectura.</span></div></div>'}
   finally{b.disabled=false;b.lastChild.textContent=tkLines.length?'Añadir otra foto del ticket':'Escanear el ticket de caja'}};
+/* ---- Ticket en PDF (app de Carrefour y otras): se lee el texto del PDF, sin cámara ni OCR ---- */
+function loadPdf(){if(window.pdfjsLib)return Promise.resolve();return new Promise((ok,ko)=>{const t=document.createElement('script');t.src='pdf/pdf.min.js';t.onload=ok;t.onerror=ko;document.head.appendChild(t)})}
+async function pdfText(file){await loadPdf();pdfjsLib.GlobalWorkerOptions.workerSrc='pdf/pdf.worker.min.js';
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;const out=[];
+  for(let n=1;n<=doc.numPages;n++){const pg=await doc.getPage(n),tc=await pg.getTextContent(),rows=[];
+    for(const it of tc.items){const str=(it.str||'').trim();if(!str)continue;const y=it.transform[5],x=it.transform[4],h=Math.abs(it.transform[3])||8;
+      let r=rows.find(r=>Math.abs(r.y-y)<=Math.max(2,h*.45));if(!r){r={y,c:[]};rows.push(r)}r.c.push({x,str})}
+    rows.sort((a,b)=>b.y-a.y);for(const r of rows)out.push(r.c.sort((a,b)=>a.x-b.x).map(c=>c.str).join(' '))}
+  return out.join('\n')}
+function pdfFix(text){/* «2 x LECHE» → cantidad; «LECHE 0,89 1,78» (precio y total) → se queda el total */
+  return text.split('\n').map(l=>l.replace(/^(\d{1,2})\s*[xX×]\s+(?=\D)/,'$1 ').replace(/\s+(\d+[,.]\d{2})\s*€?\s+(-?\d+[,.]\d{2})\s*€?\s*$/,' $2')).join('\n')}
+async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.textContent='Leyendo el PDF del ticket…';
+  try{const text=await pdfText(file);
+    if(!text.trim()){tkEl().innerHTML='<div class="tk"><div class="r bad"><span>Este PDF es una imagen, no tiene texto. Haz una foto del ticket con el botón de la cámara.</span></div></div>';return}
+    const r=parseReceipt(pdfFix(text));tkPdf=true;tkLines=r.lines;tkTotal=r.total;
+    if(!tkCtx&&r.total!=null&&!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}
+    if(!r.lines.length){tkEl().innerHTML='<div class="tk"><div class="r bad"><span>He abierto el PDF, pero no encuentro líneas con precio. Puede que este ticket tenga otro formato.</span></div></div>';return}
+    renderReceipt()}
+  catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
+  finally{btn.disabled=false;btn.lastChild.textContent=label}}
+$('tkPdfBtn').onclick=()=>{$('tkPdfIn').value='';$('tkPdfIn').click()};
+$('tkPdfIn').onchange=e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;readPdfTicket(f,$('tkPdfBtn'),'Subir otro PDF del ticket')};
+$('histUl').addEventListener('click',e=>{const b=e.target.closest('[data-tkh]');if(!b)return;const h=history.find(x=>x.id===b.dataset.tkh);if(!h)return;
+  tkCtx=h;tkLines=[];tkTotal=null;tkPdf=false;$('tkResH').innerHTML='';
+  $('pTkH').textContent=new Date(h.t).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})+' en '+h.store+' · '+eur.format(h.total)+' en la app.';
+  $('sTkH').classList.add('on')});
+$('tkHBtn').onclick=()=>{$('tkHIn').value='';$('tkHIn').click()};
+$('tkHIn').onchange=e=>{const f=e.target.files[0];if(!f)return;readPdfTicket(f,$('tkHBtn'),'Elegir otro PDF')};
+$('tkHNo').onclick=()=>{$('sTkH').classList.remove('on');tkCtx=null;tkLines=[];tkTotal=null;tkPdf=false};
 $('tkRes').onclick=e=>{
   if(e.target.closest('#tkAdd')){const {extra}=compareReceipt();for(const g of extra){const nm=g.name.toLowerCase().replace(/^./,c=>c.toUpperCase());items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),code:'',name:nm,mode:'unit',price:r2(g.amount/(g.qty||1)),qty:g.qty||1,offer:''})}
     save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast('Añadido al carrito lo que faltaba');return}
   if(!e.target.closest('#tkFix'))return;const {rows}=compareReceipt();let n=0;
-  for(const r of rows){if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
+  for(const x of rows){const r={l:x.l,it:x.it.it};if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
     const q=r.it.qty||1,up=r2((r.l.amount-(r.l.dsc||0))/q);if(r.l.dsc){r.it.price=up}else{r.it.offer='';r.it.price=up}
     if(r.it.code&&known[r.it.code])setPrice(known[r.it.code],up);if(r.it.name){const k=norm(r.it.name);byName[k]=setPrice(byName[k]||{},up)}n++}
   save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast(n===1?'1 precio corregido con el ticket':n+' precios corregidos con el ticket')};
 $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');return}
-  tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
+  tkCtx=null;tkPdf=false;tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
   $('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';$('iPaid').value='';endCalc();$('sEnd').classList.add('on');setTimeout(()=>$('iPaid').focus(),60)};
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
@@ -1326,7 +1373,7 @@ function renderHistory(){
   $('histBars').innerHTML=months.filter(m=>m.v>0||m===months[5]).map(m=>`<div><span>${esc(m.l)}</span><i style="width:${Math.max(2,m.v/mx*100)}%"></i><b>${eur.format(r2(m.v))}</b></div>`).join('');
   $('histUl').innerHTML=history.slice(0,12).map(h=>{const d=new Date(h.t),diff=h.paid!=null?r2(h.paid-h.total):0;
     return `<li><details><summary><span>${esc(d.toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'}))} · ${esc(h.store)}<small>${h.items.length} ${h.items.length===1?'artículo':'artículos'}${h.saved>0?' · ofertas −'+eur.format(h.saved):''}</small></span><span style="text-align:right"><b class="pr" style="font-size:16px">${eur.format(spent(h))}</b>${diff>0.01?'<br><span class="tag warn">caja +'+eur.format(diff)+'</span>':''}</span></summary>
-      <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}</div></details></li>`}).join('');
+      <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}<button type="button" class="linkbtn" data-tkh="${esc(h.id)}" style="display:block;margin-top:6px">Comprobar con el ticket en PDF</button></div></details></li>`}).join('');
 }
 
 /* ---- Supabase: precios compartidos y lista compartida ---- */
