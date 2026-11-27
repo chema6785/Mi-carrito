@@ -1700,7 +1700,7 @@ $('updLater').onclick=()=>{put('cart.updskip',$('updGo').dataset.v||'');$('sUpd'
 $('updGo').onclick=()=>{$('sUpd').classList.remove('on');toast('Descargando… cuando termine, ábrela e instálala');location.href=APK_URL};
 $('fUpd').onsubmit=e=>e.preventDefault();
 $('checkUpd').onclick=()=>checkUpdate(true);
-if(isNative()){$('checkUpd').hidden=false;setTimeout(()=>checkUpdate(false),4000)}else $('verTxt').textContent='Versión web: se actualiza sola';
+if(isNative()){$('checkUpd').hidden=false;setTimeout(()=>checkUpdate(false),4000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>checkUpdate(false),1500)})}else $('verTxt').textContent='Versión web: se actualiza sola';
 $('mAbout').onclick=()=>{closeAll();$('sAbout').classList.add('on')};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
 if(!load('cart.helpseen',false)){put('cart.helpseen',true);setTimeout(()=>{if(!document.querySelector('.scrim.on'))$('sHelp').classList.add('on')},900)}
