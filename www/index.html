@@ -46,7 +46,17 @@ button{font-family:inherit}
 .wa{background:#25d366;color:#08331a;text-decoration:none;box-shadow:none}
 .members li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}.members small{color:var(--mute);font-size:13px;white-space:nowrap}
 #sShare .linkbtn:not([hidden]){display:block;text-align:left}
-.shop-h{flex-wrap:wrap}.hbtns{display:flex;gap:14px}
+.shead.shop-h{flex-direction:column;align-items:stretch;text-align:left}
+.acts{display:flex;flex-wrap:wrap;gap:6px}
+.act{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 9px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 5%,var(--paper));color:var(--ink);font:600 14px/1.1 Onest,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
+.shead .act span{color:inherit;font-size:inherit}
+.act svg{width:18px;height:18px;flex:none;opacity:.85}
+.act:active{transform:scale(.97)}.act:hover{background:color-mix(in srgb,var(--ink) 10%,var(--paper))}
+.act:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
+.act.on{border-color:color-mix(in srgb,var(--ok) 55%,transparent);color:var(--ok)}
+.act.main{background:color-mix(in srgb,var(--accent) 16%,var(--paper));border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.act.main svg{color:var(--accent);opacity:1}
+#cartActs[hidden]{display:none}
 .shopother{padding:6px 18px 12px;font-size:13px;color:var(--mute)}.shopother:empty{display:none}.shopother .linkbtn{font-size:13px;min-height:36px;padding:4px 6px}
 .mv{background:none;border:0;padding:4px 0;color:var(--ink);font:600 13px Onest,sans-serif;text-decoration:underline;text-underline-offset:2px;cursor:pointer;min-height:32px}
 #moveLeft:not([hidden]){display:block;margin-top:10px}
@@ -130,7 +140,7 @@ ul{list-style:none;margin:0;padding:0}
 
 .ticket{border-radius:26px 26px 0 0;padding-bottom:16px}
 .ticket::after{content:"";position:absolute;left:0;right:0;bottom:-11px;height:12px;background:radial-gradient(circle at 9px 0,transparent 8px,var(--paper) 8.5px) 0 0/18px 12px repeat-x}
-.thead{border-bottom:2px dashed var(--line);padding-bottom:12px}
+.thead{border-bottom:2px dashed var(--line);padding-bottom:12px;flex-wrap:wrap}
 #list>li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:14px 18px;border-bottom:1px solid var(--line);align-items:start}
 #list>li:last-child{border-bottom:0}
 #list>li.empty{display:block}
@@ -230,7 +240,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </div>
 
   <section class="shop">
-    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><span class="hbtns"><button class="linkbtn" id="shareList">Compartir</button><button class="linkbtn" id="editList">Preparar</button><button class="linkbtn mic" id="micMain" aria-label="Añadir a la lista hablando">🎤 Dictar</button></span></div>
+    <div class="shead shop-h"><div><b id="shopTitle">Lista de la compra</b><span id="shopSum">Vacía</span></div><div class="acts"><button class="act" id="editList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg><span id="editTx">Editar</span></button><button class="act" id="micMain" aria-label="Añadir a la lista hablando"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Dictar</button><button class="act" id="shareList"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.4M8.3 13.2l7.4 4.4"/></svg><span id="shareTx">Compartir</span></button></div></div>
     <div class="due" id="shopDue"></div>
     <div class="cmp" id="shopCmp"></div>
     <ul id="shopUl"></ul>
@@ -238,7 +248,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   </section>
 
   <section class="ticket">
-    <div class="thead"><b>Carrito</b><span><button class="linkbtn" id="clear">Vaciar</button> <button class="linkbtn" id="finish">Terminar compra</button></span></div>
+    <div class="thead"><b>Carrito</b><div class="acts" id="cartActs"><button class="act" id="clear" aria-label="Vaciar el carrito"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Vaciar</button><button class="act main" id="finish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Terminar compra</button></div></div>
     <ul id="list"></ul>
   </section>
 
@@ -433,7 +443,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <details><summary>El carrito</summary>
       <ul><li>Toca <b>+</b> y <b>−</b> para cambiar unidades, <b>✎</b> para corregir y <b>✕</b> para quitar.</li><li>Junto a cada producto ves si el precio <b>sube</b> o <b>baja</b> respecto a la última vez, su foto y su Nutri-Score cuando lo hay.</li><li>Con <b>Poner límite</b> te avisa cuando te acercas a lo que quieres gastar.</li></ul></details>
     <details><summary>Lista de la compra</summary>
-      <ul><li><b>Preparar / Editar</b>: busca entre tus productos habituales o en la base pública, y te dice cuánto te costará.</li><li>Se ordena por <b>pasillos</b> para recorrer la tienda de una pasada.</li><li>El <b>cuadrado</b> lo mete en el carrito; tocar el nombre abre el detalle.</li><li><b>Desliza a la izquierda</b> para quitar un producto (con opción de deshacer).</li><li><b>🎤 Dictar</b>: di por ejemplo «dos leches, pan de molde y papel de aluminio».</li><li><b>Te toca comprar</b> te sugiere lo que sueles comprar cada cierto tiempo.</li></ul></details>
+      <ul><li><b>Editar lista</b>: busca entre tus productos habituales o en la base pública, y te dice cuánto te costará.</li><li>Se ordena por <b>pasillos</b> para recorrer la tienda de una pasada.</li><li>El <b>cuadrado</b> lo mete en el carrito; tocar el nombre abre el detalle.</li><li><b>Desliza a la izquierda</b> para quitar un producto (con opción de deshacer).</li><li><b>Dictar</b>: di por ejemplo «dos leches, pan de molde y papel de aluminio».</li><li><b>Te toca comprar</b> te sugiere lo que sueles comprar cada cierto tiempo.</li></ul></details>
     <details><summary>Varias tiendas</summary>
       <ul><li>Arriba, toca el nombre de la tienda para cambiarla o añadir otra.</li><li>Cada tienda tiene su <b>lista</b> y cada producto guarda su <b>precio en cada tienda</b>.</li><li>La lista te dice si en otra tienda te saldría más barata, y puedes <b>pasar productos</b> de una lista a otra.</li></ul></details>
     <details><summary>Lista compartida</summary>
@@ -576,6 +586,7 @@ const fkg=g=>(g/1000).toLocaleString('es-ES',{minimumFractionDigits:3,maximumFra
 
 function render(){
   const total=r2(items.reduce((a,i)=>a+lineTotal(i),0)),n=items.reduce((a,i)=>a+i.qty,0),saved=r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0));
+  $('cartActs').hidden=!items.length;
   $('saved').textContent=saved>0?'Ofertas: −'+eur.format(saved):'';
   const tEl=$('total'),tTxt=eur.format(total);if(tEl.textContent!==tTxt){tEl.textContent=tTxt;tEl.classList.remove('bump');void tEl.offsetWidth;tEl.classList.add('bump')}
   $('count').textContent=n===1?'1 artículo':n+' artículos';
@@ -1042,7 +1053,7 @@ function renderShop(){
   const est=r2(L.reduce((a,x)=>a+(x.price||0)*x.qty,0)),left=L.filter(x=>!x.done),leftEst=r2(left.reduce((a,x)=>a+(x.price||0)*x.qty,0));
   const got=L.length-left.length,np=n=>n===1?'1 producto':n+' productos';
   $('shopSum').textContent=!L.length?'Vacía':!got?`${np(L.length)} · unos ${eur.format(est)}`:left.length?`Cogidos ${got} de ${L.length} · quedan unos ${eur.format(leftEst)}`:`¡Lo tienes todo! · unos ${eur.format(est)}`;
-  $('editList').textContent=L.length?'Editar':'Preparar';
+  $('editTx').textContent=L.length?'Editar':'Preparar';
   const row=x=>`<li class="sl${x.done?' done':''}" data-id="${esc(x.id)}"><div class="swbg" aria-hidden="true">Quitar</div><div class="slin"><button class="chk" data-a="tog" aria-label="${x.done?'Quitar del carrito':'Añadir al carrito'}">✓</button><button class="slname" data-a="add"><span style="display:flex;gap:10px;align-items:center">${x.code&&offc[x.code]&&offc[x.code].img?`<img class="thumb" src="${esc(offc[x.code].img)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span>${x.qty>1?x.qty+' × ':''}${esc(x.name)}</span>${x.code&&offc[x.code]&&/^[a-e]$/.test(offc[x.code].ns||'')?`<span class="ns ${offc[x.code].ns} nsm" title="Nutri-Score">${offc[x.code].ns.toUpperCase()}</span>`:''}</span><small>${x.price!=null?'~'+eur.format(x.price*x.qty):'sin precio'}</small></button></div></li>`;
   if(L.length&&!load('cart.swipehint',false)){put('cart.swipehint',true);setTimeout(()=>toast('Consejo: desliza un producto hacia la izquierda para quitarlo de la lista'),1200)}
   for(const x of L){if(!x.code){const c=codeFor(x.name);if(c)x.code=c}if(x.code&&!offc[x.code])offFetch(x.code,()=>renderShop())}
@@ -1509,9 +1520,9 @@ function ago(t){const m=Math.round((Date.now()-Date.parse(t))/60000);return m<2?
 async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){members=[]}
   $('members').innerHTML=members.length?members.map(m=>`<li><span>${esc(m.name)}${m.me?' (tú)':''}${m.owner?' · creó la lista':''}</span><small>${m.me?'':esc(ago(m.last_seen))}</small></li>`).join(''):'<li><span>Solo tú, de momento</span></li>';
   const me=members.find(m=>m.me);$('shareReset').hidden=!(me&&me.owner&&members.length>1);
-  const n=members.length;$('shareList').textContent=listCode?(n>1?'Compartida ('+n+')':'Compartida'):'Compartir'}
+  const n=members.length;$('shareTx').textContent=listCode?(n>1?'Compartida ('+n+')':'Compartida'):'Compartir';$('shareList').classList.toggle('on',!!listCode)}
 function needName(){const v=$('iMe').value.trim();if(!v){toast('Pon tu nombre para que los demás sepan quién eres');$('iMe').focus();return false}myName=v;put('cart.myname',v);return true}
-function renderShare(){$('iMe').value=myName;if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareList').textContent=on?'Compartida':'Compartir'}
+function renderShare(){$('iMe').value=myName;if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareTx').textContent=on?'Compartida':'Compartir';$('shareList').classList.toggle('on',on)}
 function linkList(code){if(!needName())return false;lastBeat=0;listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList().then(loadMembers);return true}
 $('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');if(listCode){syncList();loadMembers()}};
 $('shareClose').onclick=()=>$('sShare').classList.remove('on');
