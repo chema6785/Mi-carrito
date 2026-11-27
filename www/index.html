@@ -1254,7 +1254,7 @@ function endCalc(){const t=cartTotal(),p=parseMoney($('iPaid').value),c=$('endCa
   else c.textContent='Coincide con la app.'}
 $('iPaid').addEventListener('input',endCalc);
 /* ---- escanear el ticket de caja ---- */
-let tkLines=[],tkTotal=null,tkCtx=null,tkPdf=false;
+let tkLines=[],tkTotal=null,tkCtx=null,tkPdf=false,tkSub=null,tkGd=[];
 /* tkCtx: null = carrito actual; si no, una compra guardada de «Tus compras» */
 const tkList=()=>tkCtx?tkCtx.items.map(i=>({name:i[0],tot:i[1],qty:i[2]})):items.map(it=>({it,name:it.name,tot:lineTotal(it),qty:it.qty}));
 const tkEl=()=>$(tkCtx?'tkResH':'tkRes');
@@ -1278,14 +1278,15 @@ function tkScore(a,b){const A=tkWords(a),B=tkWords(b);if(!A.length||!B.length)re
 function compareReceipt(){
   /* junta líneas repetidas del mismo producto y le resta sus descuentos */
   const G=[];
-  for(const l of tkLines.filter(l=>!l.disc)){const k=tkWords(l.name).join(' ');const g=G.find(g=>g.k===k);if(g){g.amount=r2(g.amount+l.amount);g.qty+=l.qty;g.n++}else G.push({k,name:l.name,amount:l.amount,qty:l.qty,n:1,dsc:0})}
+  for(const l of tkLines.filter(l=>!l.disc)){const k=tkWords(l.name).join(' ');const g=G.find(g=>g.k===k);if(g){g.amount=r2(g.amount+l.amount);g.qty+=l.qty;g.n++;g.dsc=r2(g.dsc+(l.dsc||0))}else G.push({k,name:l.name,amount:l.amount,qty:l.qty,n:1,dsc:l.dsc||0})}
   const disc=[];
   for(const d of tkLines.filter(l=>l.disc)){let best=null,bs=0;for(const g of G){const dw=tkWords(d.name.replace(/\d+\s*%|\b2a\b|\bud\b|unidad|dto|descuento|promo|oferta|cupon|cup[oó]n/gi,' ')),gw=tkWords(g.name);const sc=dw.length?dw.filter(x=>gw.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4)))).length/dw.length:0;if(sc>bs){bs=sc;best=g}}
     if(best&&bs>=.5){best.amount=r2(best.amount+d.amount);best.dsc=r2(best.dsc+d.amount)}else disc.push(d)}
-  const used=new Set(),rows=[];
-  for(const it of tkList()){let best=-1,bs=0;
-    G.forEach((g,i)=>{if(used.has(i))return;const sc=tkScore(it.name||'',g.name);if(sc>bs){bs=sc;best=i}});
-    if(best>=0&&bs>=.5){used.add(best);rows.push({it,l:G[best]})}else rows.push({it,l:null})}
+  /* la app también se agrupa por nombre (dos «pechuga pavo» = una línea) y se emparejan primero las parejas más parecidas */
+  const A=[];for(const x of tkList()){const k=tkWords(x.name||'').join(' ');const a=k&&A.find(a=>a.k===k);if(a){a.tot=r2(a.tot+x.tot);a.qty+=x.qty||1;a.its.push(x.it)}else A.push({k,name:x.name,tot:x.tot,qty:x.qty||1,its:[x.it]})}
+  const P=[];A.forEach((a,i)=>G.forEach((g,j)=>{const sc=tkScore(a.name||'',g.name);if(sc>=.5)P.push({i,j,sc:sc+(Math.abs(a.tot-g.amount)<0.01?.3:0)})}));P.sort((x,y)=>y.sc-x.sc);
+  const used=new Set(),ua=new Map();for(const p of P){if(used.has(p.j)||ua.has(p.i))continue;used.add(p.j);ua.set(p.i,p.j)}
+  const rows=A.map((a,i)=>({it:a,l:ua.has(i)?G[ua.get(i)]:null}));
   const extra=G.filter((g,i)=>!used.has(i));
   return {rows,extra,disc}}
 function renderReceipt(){
@@ -1293,7 +1294,8 @@ function renderReceipt(){
   const {rows,extra,disc}=compareReceipt();
   const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01),miss=rows.filter(r=>!r.l);
   let h='<div class="tk">';
-  if(tkTotal!=null){const ap=tkCtx?tkCtx.total:cartTotal(),d=r2(tkTotal-ap);h+=`<div class="r${Math.abs(d)>=0.01?' bad':''}"><span>Total del ticket ${eur.format(tkTotal)}<small>En la app ${eur.format(ap)}</small></span><b${Math.abs(d)<0.01?' class="ok"':''}>${Math.abs(d)<0.01?'Cuadra':(d>0?'+':'')+eur.format(d)}</b></div>`}
+  const ref=tkSub!=null?tkSub:tkTotal;if(ref!=null){const ap=tkCtx?tkCtx.total:cartTotal(),d=r2(ref-ap);h+=`<div class="r${Math.abs(d)>=0.01?' bad':''}"><span>${tkSub!=null?'Artículos del ticket (subtotal)':'Total del ticket'} ${eur.format(ref)}<small>En la app ${eur.format(ap)}</small></span><b${Math.abs(d)<0.01?' class="ok"':''}>${Math.abs(d)<0.01?'Cuadra':(d>0?'+':'')+eur.format(d)}</b></div>`}
+  if(tkGd.length){const g=r2(tkGd.reduce((a,x)=>a+x.amount,0));h+=`<div class="r"><span>Cheques y vales<small>${tkGd.map(x=>esc(x.name.toLowerCase())).join(', ')}${tkTotal!=null?' · total pagado '+eur.format(tkTotal):''}</small></span><b class="ok">${eur.format(g)}</b></div>`}
   h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':'El ticket coincide con la app'}</h3>`;
   if(!diff.length&&!extra.length)h+=`<div class="ok">${rows.length-miss.length} productos comprobados${miss.length?' · '+miss.length+' no los he encontrado en el ticket':''}.</div>`;
   for(const r of diff){const d=r2(r.l.amount-r.it.tot);h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(r.it.tot)}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
@@ -1305,7 +1307,7 @@ function renderReceipt(){
   h+=`<div style="font-size:12px;color:var(--mute);margin-top:6px">${tkLines.length} líneas leídas. ${tkPdf?'Leído del PDF del ticket.':'Si el ticket es largo, haz otra foto de la parte que falte.'}</div></div>`;
   tkEl().innerHTML=h}
 $('tkBtn').onclick=()=>{$('tkCam').value='';$('tkCam').click()};
-$('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;if(tkPdf){tkPdf=false;tkLines=[];tkTotal=null}
+$('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;if(tkPdf){tkPdf=false;tkLines=[];tkTotal=null;tkSub=null;tkGd=[]}
   const b=$('tkBtn');b.disabled=true;b.lastChild.textContent='Leyendo el ticket… (puede tardar un poco)';
   try{const url=URL.createObjectURL(f);const img=await new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=url});
     const w=await getOCR();await w.setParameters({tessedit_pageseg_mode:'4'});
@@ -1318,6 +1320,25 @@ $('tkCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;
   }catch(err){$('tkRes').innerHTML='<div class="tk"><div class="r bad"><span>No he podido leer el ticket. La primera vez necesita conexión para preparar la lectura.</span></div></div>'}
   finally{b.disabled=false;b.lastChild.textContent=tkLines.length?'Añadir otra foto del ticket':'Escanear el ticket de caja'}};
 /* ---- Ticket en PDF (app de Carrefour y otras): se lee el texto del PDF, sin cámara ni OCR ---- */
+/* Ticket PDF de Carrefour: «NOMBRE» y debajo «2 x ( 0,89 ) 1,78»; descuentos «1 3x2 … 2G20 -2,99» ligados por el código de promo;
+   tras SUBTOTAL vienen cheques y vales (descuentos de toda la compra) y «TOTAL A PAGAR». */
+function parseTicketPdf(text){
+  const money=s=>parseFloat(s.replace(',','.')),out=[],gdisc=[];let total=null,sub=null,pend=null,after=false;
+  const split=n=>{const m=n.match(/^(.+?)\s+((?=[A-Z0-9]*\d)[A-Z0-9]{4})$/);return m?{name:m[1],code:m[2]}:{name:n,code:''}};
+  for(let t of String(text).split('\n')){t=t.replace(/[\x00-\x1f]/g,'').replace(/\s+/g,' ').trim();if(!t)continue;
+    let m;
+    if(/total a pagar/i.test(t)){m=t.match(/(-?\d+[,.]\d{2})$/);if(m)total=money(m[1]);break}
+    if(/^[=*\-_╔╚═]{5,}/.test(t))continue;
+    if(/^subtotal/i.test(t)){m=t.match(/(\d+[,.]\d{2})$/);if(m)sub=money(m[1]);after=true;pend=null;continue}
+    if(after){m=t.match(/^(.*?)\s*(-\d+[,.]\d{2})$/);if(m)gdisc.push({name:m[1].replace(/^dto\.?\s*/i,'').trim()||'Descuento',amount:money(m[2])});continue}
+    if(m=t.match(/^(\d+)\s*x\s*\(\s*(\d+[,.]\d{2})\s*\)\s*(-?\d+[,.]\d{2})$/i)){if(pend){out.push({...pend,qty:+m[1],amount:money(m[3])});pend=null}continue}
+    if(m=t.match(/^(.*?)\s*(-\d+[,.]\d{2})$/)){const c=(m[1].match(/\s((?=[A-Z0-9]*\d)[A-Z0-9]{4})$/)||[])[1];
+      const tg=(c&&[...out].reverse().find(l=>l.code===c))||out[out.length-1];
+      if(tg){const d=money(m[2]);tg.amount=r2(tg.amount+d);tg.dsc=r2((tg.dsc||0)+d)}continue}
+    if(m=t.match(/^(.+?)\s+(\d+[,.]\d{2})$/)){pend=null;if(TK_SKIP.test(t)||!/[a-zñ]{3,}/i.test(m[1]))continue;out.push({...split(m[1]),qty:1,amount:money(m[2]),dsc:0});continue}
+    if(/[a-zñ]{3,}/i.test(t)&&!TK_SKIP.test(t)&&!/^\d/.test(t))pend={...split(t),dsc:0};else pend=null}
+  for(const l of out)l.disc=false;
+  return {lines:out,total,sub,gdisc}}
 function loadPdf(){if(window.pdfjsLib)return Promise.resolve();return new Promise((ok,ko)=>{const t=document.createElement('script');t.src='pdf/pdf.min.js';t.onload=ok;t.onerror=ko;document.head.appendChild(t)})}
 async function pdfText(file){await loadPdf();pdfjsLib.GlobalWorkerOptions.workerSrc='pdf/pdf.worker.min.js';
   const doc=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;const out=[];
@@ -1331,31 +1352,32 @@ function pdfFix(text){/* «2 x LECHE» → cantidad; «LECHE 0,89 1,78» (precio
 async function readPdfTicket(file,btn,label){btn.disabled=true;btn.lastChild.textContent='Leyendo el PDF del ticket…';
   try{const text=await pdfText(file);
     if(!text.trim()){tkEl().innerHTML='<div class="tk"><div class="r bad"><span>Este PDF es una imagen, no tiene texto. Haz una foto del ticket con el botón de la cámara.</span></div></div>';return}
-    const r=parseReceipt(pdfFix(text));tkPdf=true;tkLines=r.lines;tkTotal=r.total;
+    let r=parseTicketPdf(text);if(!r.lines.length)r={...parseReceipt(pdfFix(text)),sub:null,gdisc:[]};tkPdf=true;tkLines=r.lines;tkTotal=r.total;tkSub=r.sub;tkGd=r.gdisc;
     if(!tkCtx&&r.total!=null&&!$('iPaid').value.trim()){$('iPaid').value=r.total.toFixed(2).replace('.',',');endCalc()}
     if(!r.lines.length){tkEl().innerHTML='<div class="tk"><div class="r bad"><span>He abierto el PDF, pero no encuentro líneas con precio. Puede que este ticket tenga otro formato.</span></div></div>';return}
     renderReceipt()}
   catch(err){console.log(err);tkEl().innerHTML='<div class="tk"><div class="r bad"><span>No he podido abrir ese PDF. Comprueba que es el ticket y vuelve a probar.</span></div></div>'}
   finally{btn.disabled=false;btn.lastChild.textContent=label}}
+window.mcDbg={pdfText:f=>pdfText(f),parse:t=>parseTicketPdf(t)};
 $('tkPdfBtn').onclick=()=>{$('tkPdfIn').value='';$('tkPdfIn').click()};
 $('tkPdfIn').onchange=e=>{const f=e.target.files[0];if(!f)return;tkCtx=null;readPdfTicket(f,$('tkPdfBtn'),'Subir otro PDF del ticket')};
 $('histUl').addEventListener('click',e=>{const b=e.target.closest('[data-tkh]');if(!b)return;const h=history.find(x=>x.id===b.dataset.tkh);if(!h)return;
-  tkCtx=h;tkLines=[];tkTotal=null;tkPdf=false;$('tkResH').innerHTML='';
+  tkCtx=h;tkLines=[];tkTotal=null;tkPdf=false;tkSub=null;tkGd=[];$('tkResH').innerHTML='';
   $('pTkH').textContent=new Date(h.t).toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})+' en '+h.store+' · '+eur.format(h.total)+' en la app.';
   $('sTkH').classList.add('on')});
 $('tkHBtn').onclick=()=>{$('tkHIn').value='';$('tkHIn').click()};
 $('tkHIn').onchange=e=>{const f=e.target.files[0];if(!f)return;readPdfTicket(f,$('tkHBtn'),'Elegir otro PDF')};
 $('tkHNo').onclick=()=>{$('sTkH').classList.remove('on');tkCtx=null;tkLines=[];tkTotal=null;tkPdf=false};
 $('tkRes').onclick=e=>{
-  if(e.target.closest('#tkAdd')){const {extra}=compareReceipt();for(const g of extra){const nm=g.name.toLowerCase().replace(/^./,c=>c.toUpperCase());items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),code:'',name:nm,mode:'unit',price:r2(g.amount/(g.qty||1)),qty:g.qty||1,offer:''})}
+  if(e.target.closest('#tkAdd')){const {extra}=compareReceipt();for(const g of extra){const nm=g.name.toLowerCase().replace(/^./,c=>c.toUpperCase());items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),code:'',name:nm,mode:'unit',price:g.amount/(g.qty||1),qty:g.qty||1,offer:''})}
     save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast('Añadido al carrito lo que faltaba');return}
   if(!e.target.closest('#tkFix'))return;const {rows}=compareReceipt();let n=0;
-  for(const x of rows){const r={l:x.l,it:x.it.it};if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
-    const q=r.it.qty||1,up=r2((r.l.amount-(r.l.dsc||0))/q);if(r.l.dsc){r.it.price=up}else{r.it.offer='';r.it.price=up}
+  for(const x of rows){if(!x.it.its||x.it.its.length!==1||!x.it.its[0])continue;const r={l:x.l,it:x.it.its[0]};if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
+    const q=r.it.qty||1,up=r2((r.l.amount-(r.l.dsc||0))/q);if(r.l.dsc&&r.it.offer){r.it.price=up}else{r.it.offer='';r.it.price=r.l.dsc?r.l.amount/q:up}
     if(r.it.code&&known[r.it.code])setPrice(known[r.it.code],up);if(r.it.name){const k=norm(r.it.name);byName[k]=setPrice(byName[k]||{},up)}n++}
   save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast(n===1?'1 precio corregido con el ticket':n+' precios corregidos con el ticket')};
 $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');return}
-  tkCtx=null;tkPdf=false;tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
+  tkCtx=null;tkPdf=false;tkSub=null;tkGd=[];tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
   $('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';$('iPaid').value='';endCalc();$('sEnd').classList.add('on');setTimeout(()=>$('iPaid').focus(),60)};
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
