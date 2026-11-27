@@ -360,6 +360,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
   <form class="sheet" id="fEnd">
     <h2 id="tEnd">Terminar compra</h2>
     <p id="pEnd"></p>
+    <div class="calc" id="endOffers" hidden></div>
     <label for="iPaid">¿Cuánto has pagado en caja? (opcional)</label>
     <input id="iPaid" class="big" inputmode="decimal" autocomplete="off" placeholder="0,00">
     <div class="calc" id="endCalc">Si lo pones, te aviso si en caja te han cobrado algo de más.</div>
@@ -1436,7 +1437,7 @@ $('iPaid').addEventListener('input',endCalc);
 /* ---- escanear el ticket de caja ---- */
 let tkLines=[],tkTotal=null,tkCtx=null,tkPdf=false,tkSub=null,tkGd=[];
 /* tkCtx: null = carrito actual; si no, una compra guardada de «Tus compras» */
-const tkList=()=>tkCtx?tkCtx.items.map(i=>({name:i[0],tot:i[1],qty:i[2]})):items.map(it=>({it,name:it.name,tot:lineTotal(it),qty:it.qty}));
+const tkList=()=>tkCtx?tkCtx.items.map(i=>({name:i[0],tot:i[1],qty:i[2],offer:i[3]||'',gross:i[4]})):items.map(it=>({it,name:it.name,tot:lineTotal(it),qty:it.qty,offer:it.offer&&OFF[it.offer]?it.offer:'',gross:lineGross(it)}));
 const tkEl=()=>$(tkCtx?'tkResH':'tkRes');
 const TK_SKIP=/total|subtotal|iva|base imp|entregad|cambio|tarjeta|efectivo|visa|mastercard|importe|cuota|nif|cif|factura|ticket|caja|operaci|autoriz|gracias|devoluc|cliente|club|cheque|saldo|acumul|puntos|fecha|hora|tel[eé]f|www|c\/|avda|s\.a\.|descuento total|n[ºo] art|art[ií]culos|redondeo/i;
 function parseReceipt(text){
@@ -1469,7 +1470,7 @@ function compareReceipt(){
   for(const d of tkLines.filter(l=>l.disc)){let best=null,bs=0;for(const g of G){const dw=tkWords(d.name.replace(/\d+\s*%|\b2a\b|\bud\b|unidad|dto|descuento|promo|oferta|cupon|cup[oó]n/gi,' ')),gw=tkWords(g.name);const sc=dw.length?dw.filter(x=>gw.some(y=>y.startsWith(x.slice(0,4))||x.startsWith(y.slice(0,4)))).length/dw.length:0;if(sc>bs){bs=sc;best=g}}
     if(best&&bs>=.5){best.amount=r2(best.amount+d.amount);best.dsc=r2(best.dsc+d.amount)}else disc.push(d)}
   /* la app también se agrupa por nombre (dos «pechuga pavo» = una línea) y se emparejan primero las parejas más parecidas */
-  const A=[];for(const x of tkList()){const k=tkWords(x.name||'').join(' ');const a=k&&A.find(a=>a.k===k);if(a){a.tot=r2(a.tot+x.tot);a.qty+=x.qty||1;a.its.push(x.it)}else A.push({k,name:x.name,tot:x.tot,qty:x.qty||1,its:[x.it]})}
+  const A=[];for(const x of tkList()){const k=tkWords(x.name||'').join(' ');const a=k&&A.find(a=>a.k===k);if(a){a.tot=r2(a.tot+x.tot);a.gross=r2((a.gross||a.tot)+(x.gross||x.tot));a.qty+=x.qty||1;a.its.push(x.it);if(x.offer)a.offer=x.offer}else A.push({k,name:x.name,tot:x.tot,gross:x.gross||x.tot,offer:x.offer||'',qty:x.qty||1,its:[x.it]})}
   const P=[];A.forEach((a,i)=>G.forEach((g,j)=>{const al=a.k&&tkAlias[g.k]===a.k,sc=al?3:tkScore(a.name||'',g.name);if(sc>=.5)P.push({i,j,sc:sc+(Math.abs(a.tot-g.amount)<0.01?.3:0)})}));P.sort((x,y)=>y.sc-x.sc);
   const used=new Set(),ua=new Map();for(const p of P){if(used.has(p.j)||ua.has(p.i))continue;used.add(p.j);ua.set(p.i,p.j)}
   /* lo que queda sin emparejar: si un artículo tuyo y una línea del ticket valen exactamente lo mismo (y no hay otro igual), seguramente son el mismo */
@@ -1487,11 +1488,16 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-tkok],[dat
 function renderReceipt(){
   if(!tkLines.length){tkEl().innerHTML='';return}
   const {rows,extra,disc}=compareReceipt();
-  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01),miss=rows.filter(r=>!r.l),gs=rows.filter(r=>r.guess);
+  /* oferta no aplicada: en la app tiene 3x2 (u otra) con descuento, y en el ticket se cobró más sin ese descuento */
+  const noOff=rows.filter(r=>r.l&&r.it.offer&&r.it.gross-r.it.tot>=0.01&&r.l.amount-r.it.tot>=0.01&&!(r.l.dsc<-0.004)&&(r.l.qty||1)===(r.it.qty||1));
+  const diff=rows.filter(r=>r.l&&Math.abs(r.l.amount-r.it.tot)>=0.01&&!noOff.includes(r)),miss=rows.filter(r=>!r.l),gs=rows.filter(r=>r.guess);
   let h='<div class="tk">';
   const ref=tkSub!=null?tkSub:tkTotal;if(ref!=null){const ap=tkCtx?tkCtx.total:cartTotal(),d=r2(ref-ap);h+=`<div class="r${Math.abs(d)>=0.01?' bad':''}"><span>${tkSub!=null?'Artículos del ticket (subtotal)':'Total del ticket'} ${eur.format(ref)}<small>En la app ${eur.format(ap)}</small></span><b${Math.abs(d)<0.01?' class="ok"':''}>${Math.abs(d)<0.01?'Cuadra':(d>0?'+':'')+eur.format(d)}</b></div>`}
   if(tkGd.length){const g=r2(tkGd.reduce((a,x)=>a+x.amount,0));h+=`<div class="r"><span>Cheques y vales<small>${tkGd.map(x=>esc(x.name.toLowerCase())).join(', ')}${tkTotal!=null?' · total pagado '+eur.format(tkTotal):''}</small></span><b class="ok">${eur.format(g)}</b></div>`}
-  h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':'El ticket coincide con la app'}</h3>`;
+  if(noOff.length){const tot=r2(noOff.reduce((a,r)=>a+r.l.amount-r.it.tot,0));
+    h+=`<h3>⚠ Ofertas que no te han aplicado</h3><div class="r bad"><span>Puedes reclamar <b>${eur.format(tot)}</b> en caja o en atención al cliente, con el ticket.</span></div>`;
+    for(const r of noOff){const o=OFF[r.it.offer];h+=`<div class="r bad"><span>${esc(r.it.name)} <b>${esc(o?o[0]:r.it.offer)}</b><small>Te han cobrado ${eur.format(r.l.amount)}${r.l.qty>1||r.it.qty>1?' por '+(r.l.qty||r.it.qty)+' uds':''}; con la oferta son ${eur.format(r.it.tot)}</small></span><b>+${eur.format(r2(r.l.amount-r.it.tot))}</b></div>`}}
+  h+=`<h3>${diff.length||extra.length?'Revisa estas diferencias':noOff.length?'El resto coincide con la app':'El ticket coincide con la app'}</h3>`;
   if(!diff.length&&!extra.length)h+=`<div class="ok">${rows.length-miss.length} productos comprobados${miss.length?' · '+miss.length+' no los he encontrado en el ticket':''}.</div>`;
   for(const r of diff){const d=r2(r.l.amount-r.it.tot);h+=`<div class="r bad"><span>${esc(r.it.name)}<small>En el ticket: «${esc(r.l.name)}»${r.l.n>1?' ×'+r.l.n:''} ${eur.format(r.l.amount)}${r.l.dsc?' (con descuento '+eur.format(r.l.dsc)+')':''} · en la app ${eur.format(r.it.tot)}</small></span><b>${d>0?'+':''}${eur.format(d)}</b></div>`}
   for(const [j,l] of extra.entries())h+=`<div class="r bad"><span>${esc(l.name)}<small>Cobrado en el ticket, pero no está en la app${l.qty>1?' ('+l.qty+' uds)':''}</small>${miss.length?`<button type="button" class="linkbtn" data-tkpick style="display:block;font-size:14px;padding:4px 0">Es un artículo mío con otro nombre</button><span class="tkpick" hidden>${miss.map(r=>`<button type="button" class="tkc" data-tkj="${j}|${rows.indexOf(r)}" style="margin:3px 4px 0 0">${esc(r.it.name)} · ${eur.format(r.it.tot)}</button>`).join('')}</span>`:''}</span><b>${eur.format(l.amount)}</b></div>`;
@@ -1638,16 +1644,20 @@ $('tkRes').onclick=e=>{
   if(e.target.closest('#tkAdd')){const {extra}=compareReceipt();for(const g of extra){const nm=g.name.toLowerCase().replace(/^./,c=>c.toUpperCase());items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),code:'',name:nm,mode:'unit',price:g.amount/(g.qty||1),qty:g.qty||1,offer:''})}
     save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast('Añadido al carrito lo que faltaba');return}
   if(!e.target.closest('#tkFix'))return;const {rows}=compareReceipt();let n=0;
-  for(const x of rows){if(!x.it.its||x.it.its.length!==1||!x.it.its[0])continue;const r={l:x.l,it:x.it.its[0]};if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
+  for(const x of rows){if(!x.it.its||x.it.its.length!==1||!x.it.its[0])continue;if(x.it.offer&&x.l&&x.l.amount>x.it.tot)continue;const r={l:x.l,it:x.it.its[0]};if(!r.l||Math.abs(r.l.amount-lineTotal(r.it))<0.01||r.it.mode==='kg'||r.it.scale)continue;
     const q=r.it.qty||1,up=r2((r.l.amount-(r.l.dsc||0))/q);if(r.l.dsc&&r.it.offer){r.it.price=up}else{r.it.offer='';r.it.price=r.l.dsc?r.l.amount/q:up}
     if(r.it.code&&known[r.it.code])setPrice(known[r.it.code],up);if(r.it.name){const k=norm(r.it.name);byName[k]=setPrice(byName[k]||{},up)}n++}
   save();render();endCalc();renderReceipt();$('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';toast(n===1?'1 precio corregido con el ticket':n+' precios corregidos con el ticket')};
 $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');return}
   tkCtx=null;tkPdf=false;tkSub=null;tkGd=[];tkLines=[];tkTotal=null;$('tkRes').innerHTML='';$('tkBtn').lastChild.textContent='Escanear el ticket de caja';
-  $('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';$('iPaid').value='';endCalc();$('sEnd').classList.add('on');setTimeout(()=>$('iPaid').focus(),60)};
+  $('pEnd').textContent='En la app: '+eur.format(cartTotal())+' en '+store+'.';
+  /* recordatorio en caja: las ofertas que tienen que aplicarte */
+  const offs=items.filter(i=>i.offer&&OFF[i.offer]&&lineGross(i)-lineTotal(i)>=0.01);
+  $('endOffers').innerHTML=offs.length?`<b>Comprueba en caja que te aplican:</b> ${offs.map(i=>esc(i.name||'Artículo')+' ('+OFF[i.offer][0]+', −'+eur.format(lineGross(i)-lineTotal(i))+')').join(' · ')}. Si subes el ticket, te aviso si alguna no está.`:'';$('endOffers').hidden=!offs.length;
+  $('iPaid').value='';endCalc();$('sEnd').classList.add('on');setTimeout(()=>$('iPaid').focus(),60)};
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
-  history.unshift({id:Date.now().toString(36),t:Date.now(),store,total:t,paid:isNaN(p)?null:p,saved:r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0)),items:items.map(i=>[i.name||'Artículo',lineTotal(i),i.qty])});
+  history.unshift({id:Date.now().toString(36),t:Date.now(),store,total:t,paid:isNaN(p)?null:p,saved:r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0)),items:items.map(i=>i.offer&&OFF[i.offer]?[i.name||'Artículo',lineTotal(i),i.qty,i.offer,lineGross(i)]:[i.name||'Artículo',lineTotal(i),i.qty])});
   famPush(history[0]);items=[];cur().forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
 const spent=h=>h.paid!=null?h.paid:h.total;
 function renderHistory(){try{renderRises()}catch(e){}
