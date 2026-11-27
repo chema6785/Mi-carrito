@@ -50,6 +50,9 @@ button{font-family:inherit}
 .acts{display:flex;flex-wrap:wrap;gap:6px}
 .act{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px 0 9px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 5%,var(--paper));color:var(--ink);font:600 14px/1.1 Onest,sans-serif;cursor:pointer;transition:background .15s,transform .1s}
 .shead .act span{color:inherit;font-size:inherit}
+.seg{display:flex;margin:0 18px 10px;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 7%,var(--paper))}.seg[hidden]{display:none}
+.seg button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:var(--mute);font:600 14px Onest,sans-serif;cursor:pointer}.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #0002}
+#histWho{margin:0 18px 8px}.famopt{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.who{font-size:12px;font-weight:700;color:var(--accent)}
 .act svg{width:18px;height:18px;flex:none;opacity:.85}
 .act:active{transform:scale(.97)}.act:hover{background:color-mix(in srgb,var(--ink) 10%,var(--paper))}
 .act:focus-visible{outline:2.5px solid var(--accent);outline-offset:2px}
@@ -254,7 +257,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
 
   <section class="hist">
     <div class="shead shop-h"><div><b>Tus compras</b><span id="histSum">Cuando termines una compra, aparecerá aquí</span></div><div class="acts"><button class="act" id="histAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Añadir compra con el ticket</button></div></div>
-    <div class="bars" id="histBars"></div>
+    <div class="seg" id="histSeg" hidden><button type="button" data-v="me" class="on">Mías</button><button type="button" data-v="casa">Toda la casa</button></div><div class="calc" id="histWho" hidden></div><div class="bars" id="histBars"></div>
     <ul id="histUl"></ul>
   </section>
   <p class="foot">Mi carrito · creada por <b>chema6785</b></p>
@@ -413,6 +416,10 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
       <div class="calc" id="shareMsg"></div>
       <div class="sugt">Personas en esta lista</div>
       <ul class="members" id="members"></ul>
+      <div class="famopt">
+        <button type="button" class="act" id="famBtn" aria-pressed="false"><span id="famTx">Compartir también mis compras</span></button>
+        <p style="font-size:13px;color:var(--mute);margin:6px 0 0">Para llevar el gasto de toda la casa: cada uno ve en «Tus compras» las compras de los demás que también lo activen (tienda, artículos y total). Puedes quitarlo cuando quieras.</p>
+      </div>
       <button type="button" class="linkbtn" id="shareReset" hidden>Dejar de compartir con todos (crear un código nuevo)</button>
       <button type="button" class="linkbtn" id="shareLeave">Salir de esta lista en este móvil</button>
     </div>
@@ -463,7 +470,7 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <details><summary>Varias tiendas</summary>
       <ul><li>Arriba, toca el nombre de la tienda para cambiarla o añadir otra.</li><li>Cada tienda tiene su <b>lista</b> y cada producto guarda su <b>precio en cada tienda</b>.</li><li>La lista te dice si en otra tienda te saldría más barata, y puedes <b>pasar productos</b> de una lista a otra.</li></ul></details>
     <details><summary>Lista compartida</summary>
-      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li></ul></details>
+      <ul><li>En <b>Compartir</b> creas una lista y la envías por <b>WhatsApp</b>; quien la abra pulsa «Unirme».</li><li>Todos podéis añadir, tachar y quitar, y veis quién está en la lista.</li><li>Cada móvil lleva su propio carrito.</li><li><b>Gasto de la casa</b>: en la lista compartida activa «Compartir también mis compras». Luego en <b>Tus compras</b> elige «Toda la casa» para ver el gasto de todos y cuánto lleva cada uno este mes.</li></ul></details>
     <details><summary>Terminar la compra y el ticket</summary>
       <ul><li>¿Se te olvidó apuntar una compra? En <b>Tus compras</b> pulsa <b>Añadir compra con el ticket</b> y sube la foto o el PDF: cuenta en el gasto del mes.</li><li><b>Terminar compra</b> guarda la compra en <b>Tus compras</b>, con el gasto del mes y de la semana.</li><li>Pon lo pagado en caja o pulsa <b>Escanear el ticket de caja</b>: la app compara línea a línea y te avisa si te han cobrado algo de más.</li></ul></details>
     <details><summary>Precios compartidos</summary>
@@ -1510,7 +1517,7 @@ $('ntCam').onchange=async e=>{const f=e.target.files[0];if(!f)return;const b=$('
 $('ntSave').onclick=()=>{if(!nt)return;const st0=$('ntStore').value.trim().replace(/\s+/g,' ')||ntSel||store,ex=stores.find(x=>norm(x)===norm(st0)),st=ex||st0;if(!ex)stores.push(st);
   const dv=$('ntDate').value,d=dv?new Date(dv+'T12:00:00'):new Date(),t=isNaN(d)?Date.now():d.getTime(),amount=nt.paid!=null?nt.paid:nt.total;
   const dup=history.find(h=>h.store===st&&Math.abs(spent(h)-amount)<0.01&&new Date(h.t).toDateString()===new Date(t).toDateString());
-  const go=()=>{history.push({id:Date.now().toString(36),t,store:st,total:nt.total,paid:nt.paid,saved:Math.max(0,nt.saved||0),items:nt.items,src:'ticket'});history.sort((a,b)=>b.t-a.t);
+  const go=()=>{const nh={id:Date.now().toString(36),t,store:st,total:nt.total,paid:nt.paid,saved:Math.max(0,nt.saved||0),items:nt.items,src:'ticket'};history.push(nh);history.sort((a,b)=>b.t-a.t);famPush(nh);
     save();renderHistory();$('sNewTk').classList.remove('on');toast('Compra añadida: '+eur.format(amount)+' en '+st)};
   if(dup)ask({title:'¿Ya la tenías?',text:'Ya hay una compra de '+eur.format(amount)+' en '+st+' ese día. ¿La añado igualmente?',ok:'Añadir'},go);else go()};
 $('ntNo').onclick=()=>$('sNewTk').classList.remove('on');
@@ -1538,22 +1545,44 @@ $('finish').onclick=()=>{if(!items.length){toast('El carrito está vacío');retu
 $('endNo').onclick=()=>$('sEnd').classList.remove('on');
 $('fEnd').onsubmit=e=>{e.preventDefault();const p=parseMoney($('iPaid').value),t=cartTotal();
   history.unshift({id:Date.now().toString(36),t:Date.now(),store,total:t,paid:isNaN(p)?null:p,saved:r2(items.reduce((a,i)=>a+lineGross(i)-lineTotal(i),0)),items:items.map(i=>[i.name||'Artículo',lineTotal(i),i.qty])});
-  items=[];cur().forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
+  famPush(history[0]);items=[];cur().forEach(x=>{x.done=false;x.cartId=null});save();render();$('sEnd').classList.remove('on');toast('Compra guardada en «Tus compras»')};
 const spent=h=>h.paid!=null?h.paid:h.total;
 function renderHistory(){
-  if(!history.length){$('histBars').innerHTML='';$('histUl').innerHTML='';$('histSum').textContent='Cuando termines una compra, aparecerá aquí';return}
+  const casa=famOn&&!!listCode;$('histSeg').hidden=!casa;const all=casa&&famView==='casa';
+  [...$('histSeg').children].forEach(b=>b.classList.toggle('on',b.dataset.v===(all?'casa':'me')));
+  const H=all?[...history,...fam].sort((a,b)=>b.t-a.t):history;
+  $('histWho').hidden=true;
+  if(!H.length){$('histBars').innerHTML='';$('histUl').innerHTML='';$('histSum').textContent='Cuando termines una compra, aparecerá aquí';return}
   const now=new Date(),mk=d=>d.getFullYear()+'-'+d.getMonth(),months=[];
   for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);months.push({k:mk(d),l:d.toLocaleDateString('es-ES',{month:'short'}).replace('.',''),v:0})}
-  for(const h of history){const m=months.find(x=>x.k===mk(new Date(h.t)));if(m)m.v+=spent(h)}
+  for(const h of H){const m=months.find(x=>x.k===mk(new Date(h.t)));if(m)m.v+=spent(h)}
   const mx=Math.max(...months.map(m=>m.v),1),cur=months[5].v;
-  const wk=history.filter(h=>h.t>Date.now()-7*864e5).reduce((a,h)=>a+spent(h),0);
-  $('histSum').textContent='Este mes '+eur.format(r2(cur))+' · últimos 7 días '+eur.format(r2(wk));
+  const wk=H.filter(h=>h.t>Date.now()-7*864e5).reduce((a,h)=>a+spent(h),0);
+  $('histSum').textContent=(all?'La casa este mes ':'Este mes ')+eur.format(r2(cur))+' · últimos 7 días '+eur.format(r2(wk));
   $('histBars').innerHTML=months.filter(m=>m.v>0||m===months[5]).map(m=>`<div><span>${esc(m.l)}</span><i style="width:${Math.max(2,m.v/mx*100)}%"></i><b>${eur.format(r2(m.v))}</b></div>`).join('');
-  $('histUl').innerHTML=history.slice(0,12).map(h=>{const d=new Date(h.t),diff=h.paid!=null?r2(h.paid-h.total):0;
-    return `<li><details><summary><span>${esc(d.toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'}))} · ${esc(h.store)}<small>${h.items.length} ${h.items.length===1?'artículo':'artículos'}${h.saved>0?' · ofertas −'+eur.format(h.saved):''}</small></span><span style="text-align:right"><b class="pr" style="font-size:16px">${eur.format(spent(h))}</b>${diff>0.01?'<br><span class="tag warn">caja +'+eur.format(diff)+'</span>':''}</span></summary>
-      <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}<button type="button" class="linkbtn" data-tkh="${esc(h.id)}" style="display:block;margin-top:6px">Comprobar con el ticket en PDF</button></div></details></li>`}).join('');
+  if(all){const per={},mk0=mk(now);for(const h of H)if(mk(new Date(h.t))===mk0){const w=h.who||myName||'Yo';per[w]=r2((per[w]||0)+spent(h))}
+    const ks=Object.keys(per);if(ks.length){$('histWho').hidden=false;$('histWho').textContent='Este mes: '+ks.map(k=>k+' '+eur.format(per[k])).join(' · ')}}
+  $('histUl').innerHTML=H.slice(0,all?20:12).map(h=>{const d=new Date(h.t),diff=h.paid!=null?r2(h.paid-h.total):0;
+    return `<li><details><summary><span>${esc(d.toLocaleDateString('es-ES',{weekday:'short',day:'2-digit',month:'2-digit'}))} · ${esc(h.store)}${h.who?' <span class="who">'+esc(h.who)+'</span>':''}<small>${h.items.length} ${h.items.length===1?'artículo':'artículos'}${h.saved>0?' · ofertas −'+eur.format(h.saved):''}</small></span><span style="text-align:right"><b class="pr" style="font-size:16px">${eur.format(spent(h))}</b>${diff>0.01?'<br><span class="tag warn">caja +'+eur.format(diff)+'</span>':''}</span></summary>
+      <div class="hdet">${h.items.map(i=>`<div><span>${i[2]>1?i[2]+' × ':''}${esc(i[0])}</span><span>${eur.format(i[1])}</span></div>`).join('')}${h.paid!=null?`<div><span>Total en la app</span><span>${eur.format(h.total)}</span></div>`:''}${h.who?'':`<button type="button" class="linkbtn" data-tkh="${esc(h.id)}" style="display:block;margin-top:6px">Comprobar con el ticket en PDF</button><button type="button" class="linkbtn" data-hdel="${esc(h.id)}" style="display:block;color:var(--warn)">Borrar esta compra</button>`}</div></details></li>`}).join('');
 }
 
+/* ---- gasto de la casa: compras compartidas con la lista familiar ---- */
+let famOn=load('cart.famon',false),fam=load('cart.fam',[]),famView=load('cart.famview','me'),famQ=load('cart.famq',[]),famBusy=false;
+function famPush(h,del){if(!famOn||!listCode)return;famQ=famQ.filter(x=>x.id!==h.id);famQ.push({id:h.id,t:h.t,store:h.store,total:h.total,paid:h.paid,saved:h.saved||0,items:(h.items||[]).slice(0,400),deleted:!!del});put('cart.famq',famQ);famFlush()}
+async function famFlush(){if(famBusy||!famQ.length||!listCode||!navigator.onLine||!sbOn())return;famBusy=true;
+  try{while(famQ.length){try{await sbRpc('put_purchase',{p_list:listCode,p_device:device,p:famQ[0]})}catch(e){if(!/^4\d\d$/.test(String(e.message)))throw e}famQ.shift();put('cart.famq',famQ)}}catch(e){}finally{famBusy=false}}
+async function famPull(){if(!famOn||!listCode||!sbOn()||!navigator.onLine)return;try{const r=await sbRpc('get_purchases',{p_list:listCode,p_device:device,p_since:null});if(!Array.isArray(r))return;
+  fam=r.filter(x=>!x.mine&&!x.deleted).map(x=>({id:'f'+x.device+x.id,t:Date.parse(x.t),store:x.store||'',total:Number(x.total)||0,paid:x.paid==null?null:Number(x.paid),saved:Number(x.saved)||0,items:Array.isArray(x.items)?x.items:[],who:x.who||'Otro'}));
+  put('cart.fam',fam);renderHistory()}catch(e){}}
+function famSet(on){famOn=on;put('cart.famon',on);renderFam();
+  const since=Date.now()-400*864e5;for(const h of history)if(h.t>since)famPush(h,!on);if(!on){fam=[];put('cart.fam',fam);famView='me';put('cart.famview','me')}
+  renderHistory();if(on)setTimeout(famPull,1500)}
+function renderFam(){$('famBtn').classList.toggle('on',famOn);$('famBtn').setAttribute('aria-pressed',famOn);$('famTx').textContent=famOn?'✓ Compartiendo mis compras':'Compartir también mis compras'}
+$('famBtn').onclick=()=>{if(!listCode)return;if(famOn)ask({title:'¿Dejar de compartir tus compras?',text:'Los demás dejarán de ver tus compras en el gasto de la casa.',ok:'Dejar de compartir'},()=>famSet(false));else famSet(true)};
+$('histSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;famView=b.dataset.v;put('cart.famview',famView);renderHistory();if(famView==='casa')famPull()};
+$('histUl').addEventListener('click',e=>{const b=e.target.closest('[data-hdel]');if(!b)return;const h=history.find(x=>x.id===b.dataset.hdel);if(!h)return;
+  ask({title:'¿Borrar esta compra?',text:new Date(h.t).toLocaleDateString('es-ES')+' en '+h.store+' · '+eur.format(spent(h))+'. Dejará de contar en el gasto.',ok:'Borrar'},()=>{history=history.filter(x=>x!==h);save();famPush(h,true);renderHistory();toast('Compra borrada')})});
 /* ---- Supabase: precios compartidos y lista compartida ---- */
 const SB_URL='https://rtygmlehoyvkozeihjnk.supabase.co',SB_KEY='sb_publishable_9Os1C-lYJDa9u1j_I8YUBQ_q8LXX1A2';
 const sbOn=()=>!!(SB_URL&&SB_KEY);
@@ -1620,7 +1649,7 @@ async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listC
   const me=members.find(m=>m.me);$('shareReset').hidden=!(me&&me.owner&&members.length>1);
   const n=members.length;$('shareTx').textContent=listCode?(n>1?'Compartida ('+n+')':'Compartida'):'Compartir';$('shareList').classList.toggle('on',!!listCode)}
 function needName(){const v=$('iMe').value.trim();if(!v){toast('Pon tu nombre para que los demás sepan quién eres');$('iMe').focus();return false}myName=v;put('cart.myname',v);return true}
-function renderShare(){$('iMe').value=myName;if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareTx').textContent=on?'Compartida':'Compartir';$('shareList').classList.toggle('on',on)}
+function renderShare(){$('iMe').value=myName;if(listCode)$('shareWa').href='https://wa.me/?text='+encodeURIComponent(waText());const on=!!listCode;$('shareOff').hidden=on;$('shareOn').hidden=!on;$('shareCode').textContent=listCode;$('shareTx').textContent=on?'Compartida':'Compartir';$('shareList').classList.toggle('on',on);renderFam()}
 function linkList(code){if(!needName())return false;lastBeat=0;listCode=code;listSince=null;snap={};put('cart.listcode',code);put('cart.listsince',null);put('cart.listsnap',{});renderShare();syncList().then(loadMembers);return true}
 $('shareList').onclick=()=>{if(!sbOn()){toast('La lista compartida aún no está configurada');return}renderShare();$('sShare').classList.add('on');if(listCode){syncList();loadMembers()}};
 $('shareClose').onclick=()=>$('sShare').classList.remove('on');
@@ -1631,7 +1660,7 @@ $('shareReset').onclick=()=>ask({title:'¿Dejar de compartir con todos?',text:'T
 $('iMe').addEventListener('change',()=>{const v=$('iMe').value.trim();if(v){myName=v;put('cart.myname',v);lastBeat=0;syncList()}});
 $('shareJoin').onclick=()=>{const v=$('iJoin').value.toUpperCase().replace(/[^A-Z0-9]/g,'');if(v.length!==10){toast('El código tiene 10 letras y números');return}if(linkList(v))toast('Unido a la lista compartida')};
 $('shareCopy').onclick=async()=>{try{await navigator.clipboard.writeText(listCode);$('shareMsg').textContent='Código copiado'}catch(e){$('shareMsg').textContent='Mantén pulsado el código para copiarlo'}};
-$('shareLeave').onclick=()=>{if(listCode)sbRpc('leave_list',{p_list:listCode,p_device:device}).catch(()=>{});listCode='';members=[];put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
+$('shareLeave').onclick=()=>{if(famOn)famSet(false);if(listCode)sbRpc('leave_list',{p_list:listCode,p_device:device}).catch(()=>{});listCode='';members=[];put('cart.listcode','');renderShare();$('sShare').classList.remove('on');toast('Este móvil ya no comparte la lista')};
 setInterval(()=>{if(!document.hidden)syncList()},15000);
 function offerJoin(code){if(!code||!sbOn()||listCode===code)return;
   closeAll&&closeAll();renderShare();$('iJoin').value=code;$('sShare').classList.add('on');$('shareMsg').textContent='';
@@ -1647,8 +1676,8 @@ function handleAppUrl(u){const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i)
 try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
   if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices()}});
-addEventListener('online',()=>{syncList();flushPrices()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices();famFlush();famPull()}});
+addEventListener('online',()=>{syncList();flushPrices();famFlush()});
 
 /* ---- copia de seguridad ---- */
 function backupData(){return {app:'mi-carrito',v:2,fecha:new Date().toISOString(),known,byName,shop,budget,items,stores,store,history,tkAlias,mydata:load('cart.mydata',null)}}
@@ -1746,7 +1775,7 @@ $('bakPaste').onclick=()=>{const t=$('bakPasteText');if(t.hidden){t.hidden=false
 document.addEventListener('keydown',e=>{if(e.key==='Escape')['sBak','sStore','sEnd','sShare'].forEach(id=>$(id).classList.remove('on'))});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
-fixStores();applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);checkJoinLink();if(listCode&&sbOn())loadMembers();
+fixStores();applyBars(tema0);render();renderShare();syncList();flushPrices();setTimeout(backfillShared,4000);setTimeout(()=>{famFlush();famPull()},2500);checkJoinLink();if(listCode&&sbOn())loadMembers();
 if('serviceWorker' in navigator&&location.hostname.endsWith('github.io')){navigator.serviceWorker.register('sw.js').catch(()=>{});
   /* descarga en segundo plano lo necesario para leer etiquetas, para que en la tienda funcione sin cobertura */
   setTimeout(()=>{if(navigator.onLine&&!(navigator.connection&&navigator.connection.saveData))['ocr/tesseract.min.js','ocr/worker.min.js','ocr/tesseract-core-simd-lstm.wasm.js','ocr/tesseract-core-lstm.wasm.js','ocr/spa.traineddata.gz'].forEach(u=>fetch(u).catch(()=>{}))},8000)}
