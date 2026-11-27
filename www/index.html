@@ -1662,7 +1662,7 @@ async function syncList(){
   }catch(e){$('shareMsg').textContent='Sin conexión: se sincronizará cuando vuelva la cobertura.'}
   finally{syncing=false}
 }
-function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\n(Si tienes la app instalada, al abrir el enlace pulsa «Abrir en la app»)\nO en la app: Compartir → Unirme → código '+listCode}
+function waText(){return 'Te comparto mi lista de la compra de Mi carrito 🛒\nÁbrela aquí: https://chema6785.github.io/Mi-carrito/#unir-'+listCode+'\nSi tienes la app: copia este mensaje y abre Mi carrito, te preguntará si quieres unirte.'}
 function ago(t){const m=Math.round((Date.now()-Date.parse(t))/60000);return m<2?'ahora':m<60?'hace '+m+' min':m<1440?'hace '+Math.round(m/60)+' h':'hace '+Math.round(m/1440)+' d'}
 async function loadMembers(){try{members=await sbRpc('get_members',{p_list:listCode,p_device:device})||[]}catch(e){members=[]}
   $('members').innerHTML=members.length?members.map(m=>`<li><span>${esc(m.name)}${m.me?' (tú)':''}${m.owner?' · creó la lista':''}</span><small>${m.me?'':esc(ago(m.last_seen))}</small></li>`).join(''):'<li><span>Solo tú, de momento</span></li>';
@@ -1687,15 +1687,22 @@ function offerJoin(code){if(!code||!sbOn()||listCode===code)return;
   const and=/android/i.test(navigator.userAgent)&&!isNative();
   $('openNative').hidden=!and;
   if(and)$('openNative').href='intent://unir/'+code+'#Intent;scheme=micarrito;package=es.micarrito.app;S.browser_fallback_url='+encodeURIComponent(location.origin+location.pathname+'#unir-'+code)+';end';
+  if(and)$('openNative').onclick=()=>{try{navigator.clipboard.writeText('Mi carrito unir-'+code)}catch(e){}};
   toast(and?'Si tienes la app instalada, pulsa «Abrir en la app». Si no, pulsa «Unirme».':'Pulsa «Unirme» para ver la lista compartida')}
 function checkJoinLink(){const m=location.hash.match(/^#unir-([A-Z0-9]{10})$/);if(!m)return;
   try{window.window.history.replaceState(null,'',location.pathname)}catch(e){}
   offerJoin(m[1])}
 /* la APK recibe los enlaces micarrito://unir/CODIGO */
-function handleAppUrl(u){if(/^micarrito:\/\/login/i.test(String(u||''))){gotTokens(u);return}const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
+function handleAppUrl(u){put('cart.lasturl',{u:String(u||'').slice(0,80),t:Date.now()});if(/^micarrito:\/\/login/i.test(String(u||''))){gotTokens(u);return}const m=String(u||'').match(/unir[\/-]([A-Z0-9]{10})/i);if(m)offerJoin(m[1].toUpperCase())}
 try{const A=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.App;
   if(A&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){A.addListener('appUrlOpen',d=>handleAppUrl(d&&d.url));A.getLaunchUrl().then(d=>d&&handleAppUrl(d.url)).catch(()=>{})}}catch(e){}
 addEventListener('hashchange',checkJoinLink);
+/* APK: si copiaste una invitación (de WhatsApp o del botón «Abrir en la app»), al abrir la app te ofrece unirte */
+let clipSeen=load('cart.clipseen','');
+async function checkClipJoin(){const C=capP('Clipboard');if(!C||document.hidden)return;let t='';try{const r=await C.read();t=String((r&&r.value)||'')}catch(e){return}
+  const m=t.match(/unir[\/-]([A-Z0-9]{10})\b/i);if(!m)return;const code=m[1].toUpperCase();if(code===listCode||code===clipSeen)return;
+  clipSeen=code;put('cart.clipseen',code);offerJoin(code)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(checkClipJoin,600)});setTimeout(checkClipJoin,2500);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){syncList();flushPrices();famFlush();famPull()}});
 addEventListener('online',()=>{syncList();flushPrices();famFlush()});
 
