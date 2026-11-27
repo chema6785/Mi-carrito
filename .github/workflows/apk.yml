@@ -47,14 +47,13 @@ jobs:
           # firma siempre con la misma clave y número de versión creciente, para poder actualizar encima
           sed -i "s/versionCode 1$/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
           grep -n "versionCode" android/app/build.gradle
-          # la clave de firma está en los secretos del repositorio (no a la vista); si aún no existen, se usa la antigua
+          # la clave de firma está en los secretos del repositorio (no a la vista); sin ellos no se compila
           if [ -n "$KS_B64" ] && [ -n "$KS_PASS" ]; then
             echo "$KS_B64" | tr -d ' \n\r' | base64 -d > android/firma.jks
             KS=../firma.jks; KA=micarrito; KP="$KS_PASS"
             echo "Firmando con la clave secreta"
           else
-            KS=../../android-keystore/debug.keystore; KA=androiddebugkey; KP=android
-            echo "AVISO: sin secretos, firmando con la clave antigua"
+            echo "Faltan los secretos ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASS"; exit 1
           fi
           cat >> android/app/build.gradle <<GRADLE
           android {
