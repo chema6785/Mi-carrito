@@ -1226,20 +1226,26 @@ $('cmpBody').onclick=e=>{const b=e.target.closest('[data-cmp]');if(!b)return;con
 $('shopCmp').onclick=e=>{const b=e.target.closest('[data-cmp]');if(!b)return;const L=cur().filter(x=>!x.done);if(!L.length)return;moveIds=L.map(x=>x.id);doMove(b.dataset.cmp)};
 /* ---- te toca comprar: cada cuánto compras cada cosa ---- */
 function dueItems(){
+  /* cada cuánto se compra cada cosa: tus compras + las de la casa (si las compartís) + tus tickets antiguos de Carrefour.
+     La frecuencia es de la casa entera, pero cada producto sale en la lista de la tienda donde lo soléis comprar */
   const now=Date.now(),D=864e5,m={};
-  const add=(n,t)=>{const k=norm(n);if(!k||k==='articulo')return;(m[k]=m[k]||{name:n,ts:[]}).ts.push(t)};
-  for(const h of history)for(const it of h.items||[])add(it[0],h.t);
-  const res=[],inList=new Set(cur().map(x=>norm(x.name)));
+  const add=(n,t,st)=>{const k=norm(n);if(!k||k==='articulo')return;const o=(m[k]=m[k]||{name:n,ts:[],st:{}});o.ts.push(t);if(st)o.st[st]=(o.st[st]||0)+1};
+  const H=(typeof famOn!=='undefined'&&famOn&&listCode)?[...history,...fam]:history;
+  for(const h of H){const day=Math.floor(h.t/D)*D;for(const it of h.items||[])add(it[0],day,h.store)}
+  const res=[],inList=new Set([...shop.map(x=>norm(x.name)),...items.map(x=>norm(x.name||''))]);
   const keys=new Set([...Object.keys(m),...CAT0.map(r=>norm(r[0]))]);
   for(const k of keys){if(inList.has(k))continue;
     const c=CAT0.find(r=>norm(r[0])===k),hm=m[k];let ts=hm?[...new Set(hm.ts)].sort((a,b)=>a-b):[];
     let interval=null,last=ts.length?ts[ts.length-1]:null,times=ts.length;
     if(ts.length>=2)interval=(ts[ts.length-1]-ts[0])/(ts.length-1);
+    const st=hm?{...hm.st}:{};
     if(c&&c[3]>=2){const [dd,mm]=String(c[4]).split('/').map(Number);let cl=new Date(2026,mm-1,dd).getTime();if(cl>now)cl-=365*D;
-      if(interval==null)interval=Math.max(3*D,120*D/c[3]);last=Math.max(last||0,cl);times+=c[3]}
+      if(interval==null)interval=Math.max(3*D,120*D/c[3]);last=Math.max(last||0,cl);times+=c[3];st.Carrefour=(st.Carrefour||0)+c[3]}
     if(interval==null||times<2)continue;
+    /* ¿dónde lo soléis comprar? */
+    const usual=Object.entries(st).sort((a,b)=>b[1]-a[1])[0];if(usual&&norm(usual[0])!==norm(store)&&!Object.keys(st).some(x=>norm(x)===norm(store)))continue;
     const since=now-last,ratio=since/interval;
-    if(ratio>=.9&&ratio<=2.5)res.push({name:hm?hm.name:c[0],ratio,interval,why:'Sueles comprarlo cada '+Math.max(1,Math.round(interval/D))+' días · la última vez hace '+Math.round(since/D),price:findPrice(hm?hm.name:c[0])})}
+    if(ratio>=.9&&ratio<=2.5)res.push({name:hm?hm.name:c[0],ratio,interval,why:'Soléis comprarlo cada '+Math.max(1,Math.round(interval/D))+' días · la última vez hace '+Math.round(since/D)+(usual&&Object.keys(st).length>1?' · sobre todo en '+usual[0]:''),price:findPrice(hm?hm.name:c[0])})}
   return res.sort((a,b)=>a.interval-b.interval).slice(0,8);
 }
 function addToList(name,qty){const ex=cur().find(x=>norm(x.name)===norm(name));
