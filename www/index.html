@@ -331,8 +331,9 @@ textarea{width:100%;border-radius:16px;border:2px solid transparent;background:v
     <h2 id="tStore">¿Dónde compras hoy?</h2>
     <p>Cada código guarda su precio en cada tienda, y te aviso si en otra está más barato.</p>
     <div class="storelist" id="storeList"></div>
-    <label for="iStore">Otra tienda</label>
-    <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iStore" autocomplete="off" placeholder="Ej. Mercadona, Lidl, Dia…"><button class="btn primary" style="min-height:52px;font-size:15px">Añadir</button></div>
+    <button type="button" class="linkbtn" id="storeRen" style="display:block;margin:4px 0 10px"></button>
+    <label for="iStore" id="lStore">Otra tienda</label>
+    <div class="coderow" style="grid-template-columns:minmax(0,1fr) auto"><input id="iStore" autocomplete="off" placeholder="Ej. Mercadona, Lidl, Dia…"><button class="btn primary" id="storeOk" style="min-height:52px;font-size:15px">Añadir</button></div>
     <div class="sbtns" style="grid-template-columns:1fr"><button type="button" class="btn ghost" id="storeClose">Cerrar</button></div>
   </form>
 </div>
@@ -1251,11 +1252,26 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')$('sList').classList
 function renderStore(){$('storeName').textContent=store}
 function openStores(){
   $('storeList').innerHTML=stores.map(x=>`<button type="button" data-s="${esc(x)}" class="${x===store?'on':''}"><span>${esc(x)}</span><span>${x===store?'Ahora':''}</span></button>`).join('');
+  renaming=null;$('lStore').textContent='Otra tienda';$('storeOk').textContent='Añadir';$('storeRen').textContent='Cambiar el nombre de «'+store+'»';
   $('iStore').value='';$('sStore').classList.add('on')}
+let renaming=null;
+$('storeRen').onclick=()=>{renaming=store;$('lStore').textContent='Nuevo nombre para «'+store+'»';$('storeOk').textContent='Cambiar';$('iStore').value=store;$('iStore').focus();$('iStore').select()};
+/* cambia el nombre en todo: precios por tienda, básculas, listas, historial y lo ya compartido desde este móvil */
+function renameStore(from,to){
+  const mv=r=>{if(!r||typeof r!=='object')return;if(r.prices&&r.prices[from]){const a=r.prices[from],b=r.prices[to];if(!b||(a.t||0)>=(b.t||0))r.prices[to]=a;delete r.prices[from]}
+    if(Array.isArray(r.hist))r.hist.forEach(h=>{if(h[2]===from)h[2]=to})};
+  Object.values(byName).forEach(mv);Object.values(known).forEach(mv);
+  for(const k of Object.keys(known))if(k.startsWith('plu:'+from+':')){const nk='plu:'+to+':'+k.slice(('plu:'+from+':').length);if(!known[nk])known[nk]=known[k];delete known[k]}
+  history.forEach(h=>{if(h.store===from)h.store=to});shop.forEach(x=>{if(x.store===from)x.store=to});
+  outbox.forEach(o=>{if(o.p_store===from)o.p_store=to});put('cart.outbox',outbox);
+  stores=stores.map(x=>x===from?to:x).filter((x,i,a)=>a.indexOf(x)===i);if(store===from)store=to;
+  save();if(sbOn())sbRpc('rename_store',{p_device:device,p_from:from,p_to:to}).catch(()=>{})}
 function useStore(x){store=x;applyByName();cur().forEach(i=>{if(!i.done){const p=findPrice(i.name);if(p!=null)i.price=p}});save();renderStore();render();$('sStore').classList.remove('on');toast('Comprando en '+x)}
 $('storeBtn').onclick=openStores;
 $('storeList').onclick=e=>{const b=e.target.closest('button');if(b)useStore(b.dataset.s)};
 $('fStore').onsubmit=e=>{e.preventDefault();const v=$('iStore').value.trim().replace(/\s+/g,' ');if(!v)return;
+  if(renaming){const from=renaming;renaming=null;if(v===from){openStores();return}const ex=stores.find(x=>x!==from&&norm(x)===norm(v));
+    renameStore(from,ex||v);applyByName();renderStore();render();$('sStore').classList.remove('on');toast('«'+from+'» ahora se llama «'+(ex||v)+'»');return}
   const ex=stores.find(x=>norm(x)===norm(v));if(!ex)stores.push(v);useStore(ex||v)};
 $('storeClose').onclick=()=>$('sStore').classList.remove('on');
 
