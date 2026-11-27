@@ -1752,9 +1752,18 @@ $('checkUpd').onclick=()=>checkUpdate(true);
 /* ---- cuenta con Google (opcional): tus datos guardados en la nube y la familia unida por cuenta ---- */
 let auth=load('cart.auth',null),cloudT=null,cloudBusy=false,cloudAt=load('cart.cloudat',0);
 const authH=()=>({'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+auth.at});
-function loginGoogle(){const redir=isNative()?'https://chema6785.github.io/Mi-carrito/login.html':location.origin+location.pathname;
+/* APK: Chrome no siempre devuelve la sesión a la app, así que la página de vuelta la deja un momento en el servidor
+   con un código de un solo uso que solo conoce este móvil, y la app la recoge al volver */
+let hoT=null;
+function newHandoff(){const b=new Uint8Array(16);crypto.getRandomValues(b);const n=[...b].map(x=>x.toString(16).padStart(2,'0')).join('');put('cart.handoff',{n,t:Date.now()});pollHandoff();return n}
+async function takeHandoff(){const h=load('cart.handoff',null);if(!h||!h.n)return;if(Date.now()-h.t>10*60000){put('cart.handoff',null);return}
+  if(document.hidden||!navigator.onLine)return;let d=null;try{d=await sbRpc('take_handoff',{p_n:h.n})}catch(e){}
+  if(d&&d.access_token){put('cart.handoff',null);clearInterval(hoT);const q=new URLSearchParams();for(const k of ['access_token','refresh_token','expires_in'])if(d[k])q.set(k,d[k]);gotTokens('?'+q.toString())}}
+function pollHandoff(){clearInterval(hoT);hoT=setInterval(()=>{const h=load('cart.handoff',null);if(!h||Date.now()-h.t>10*60000){clearInterval(hoT);return}takeHandoff()},2500)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)takeHandoff()});
+function loginGoogle(){const redir=isNative()?'https://chema6785.github.io/Mi-carrito/login.html?n='+newHandoff():location.origin+location.pathname;
   toast('Abriendo Google…');location.href=SB_URL+'/auth/v1/authorize?provider=google&redirect_to='+encodeURIComponent(redir)}
-async function gotTokens(frag){const f=String(frag||''),p=new URLSearchParams(f.includes('#')?f.replace(/^.*?#/,''):f.replace(/^[^?]*\?/,''));
+async function gotTokens(frag){put('cart.handoff',null);clearInterval(hoT);const f=String(frag||''),p=new URLSearchParams(f.includes('#')?f.replace(/^.*?#/,''):f.replace(/^[^?]*\?/,''));
   if(p.get('error')){toast('No se pudo entrar: '+(p.get('error_description')||p.get('error')).replace(/\+/g,' '));return}
   const at=p.get('access_token'),rt=p.get('refresh_token');if(!at||!rt)return;
   auth={at,rt,exp:Date.now()+(+p.get('expires_in')||3600)*1000,user:null};
@@ -1790,6 +1799,7 @@ $('accDel').onclick=()=>ask({title:'¿Borrar tu cuenta?',text:'Se borran tu cuen
   const at=await token();if(!at){toast('Necesitas conexión para borrarla');return}
   try{const r=await fetch(SB_URL+'/rest/v1/rpc/delete_my_account',{method:'POST',headers:authH(),body:'{}'});if(!r.ok)throw 0;listCode='';put('cart.listcode','');famOn=false;put('cart.famon',false);renderShare();logout(true);$('sAcc').classList.remove('on');toast('Cuenta borrada')}catch(e){toast('No he podido borrarla ahora')}});
 if(/access_token=|error_description=/.test(location.hash)){const h=location.hash;window.history.replaceState(null,'',location.pathname+location.search);gotTokens(h)}
+if(load('cart.handoff',null)){takeHandoff();pollHandoff()}
 if(auth){adoptAccountDevice();setTimeout(()=>{cloudPull(false).then(scheduleCloud)},3000)}
 renderAcc();
 

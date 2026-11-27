@@ -28,8 +28,16 @@ a.btn:focus-visible{outline:3px solid #fff;outline-offset:3px}
   var web=location.origin+location.pathname.replace(/login\.html$/,'');
   var intent='intent://login?'+keep.toString()+'#Intent;scheme=micarrito;package=es.micarrito.app;S.browser_fallback_url='+encodeURIComponent(web+'#'+keep.toString())+';end';
   go.href=/Android/i.test(navigator.userAgent)?intent:web+'#'+keep.toString();
-  history.replaceState(null,'',location.pathname);
-  if(keep.get('access_token'))setTimeout(function(){location.href=go.href},300);
+  history.replaceState(null,'',location.pathname+location.search);
+  var n=new URLSearchParams(location.search).get('n');
+  function jump(){if(keep.get('access_token'))setTimeout(function(){location.href=go.href},300)}
+  if(n&&/^[a-f0-9]{32,64}$/.test(n)&&keep.get('access_token')){
+    document.getElementById('p').textContent='Guardando tu sesión…';
+    var data={access_token:keep.get('access_token'),refresh_token:keep.get('refresh_token'),expires_in:keep.get('expires_in')};
+    fetch('https://rtygmlehoyvkozeihjnk.supabase.co/rest/v1/rpc/put_handoff',{method:'POST',headers:{'Content-Type':'application/json',apikey:'sb_publishable_9Os1C-lYJDa9u1j_I8YUBQ_q8LXX1A2'},body:JSON.stringify({p_n:n,p_data:data})})
+      .then(function(r){document.getElementById('p').textContent=r.ok?'Listo. Vuelve a Mi carrito con el botón o cambiando de app: la sesión se recoge sola.':'Toca el botón para volver a Mi carrito.';jump()})
+      .catch(function(){document.getElementById('p').textContent='Toca el botón para volver a Mi carrito.';jump()});
+  } else jump();
 })();
 </script>
 </body>
