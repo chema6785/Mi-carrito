@@ -707,17 +707,21 @@ function render(){
 
 /* habituales: tus tickets de Carrefour + todo lo que has comprado en la app o añadido con ticket, de más a menos veces */
 let sugMore=false,lsugMore=false,SUG=[];
-function HAB(){const m=new Map(),now=Date.now();
-  const add=(n,p,v,c,d)=>{n=String(n||'').trim();if(!/[a-zñ]{3,}/i.test(n))return;const k=norm(n),o=m.get(k);if(o){o[3]+=c;if(o[1]==null&&p!=null)o[1]=p;if(!o[4]&&d)o[4]=d}else m.set(k,[n.replace(/^./,x=>x.toUpperCase()),p,v,c,d])};
-  for(const r of CAT)add(r[0],r[1],r[2],r[3],r[4]);
-  for(const h of history){const dd=new Date(h.t).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'}),rec=now-h.t<90*864e5?1:0;
-    for(const i of h.items||[]){const q=i[2]||1,fp=findPrice(i[0]);add(i[0],fp!=null?fp:(h.store===store?r2(i[1]/q):null),0,1+(h.store===store?1:0)+rec,dd)}}
-  return [...m.values()].sort((a,b)=>b[3]-a[3])}
+function HAB(){const m=new Map(),now=Date.now(),here=norm(store);
+  /* [nombre, precio aquí, varía, veces, fecha, veces en esta tienda] — los habituales son de la tienda elegida */
+  const add=(n,p,v,c,d,h)=>{n=String(n||'').trim();if(!/[a-zñ]{3,}/i.test(n))return;const k=norm(n),o=m.get(k);if(o){o[3]+=c;o[5]+=h;if(h&&p!=null)o[1]=p;else if(o[1]==null&&p!=null)o[1]=p;if(!o[4]&&d)o[4]=d}else m.set(k,[n.replace(/^./,x=>x.toUpperCase()),p,v,c,d,h])};
+  const carre=here===norm('Carrefour');for(const r of CAT)add(r[0],carre?r[1]:null,r[2],r[3],r[4],carre?r[3]:0);
+  const H=(typeof famOn!=='undefined'&&famOn&&listCode)?[...history,...fam]:history;
+  for(const h of H){const dd=new Date(h.t).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit'}),rec=now-h.t<90*864e5?1:0,isHere=norm(h.store||'')===here;
+    for(const i of h.items||[]){const q=i[2]||1,fp=findPrice(i[0]);add(i[0],fp!=null?fp:(isHere?r2(i[1]/q):null),0,1+rec,isHere?dd:null,isHere?1+rec:0)}}
+  return [...m.values()].sort((a,b)=>b[5]-a[5]||b[3]-a[3])}
+/* sin buscar: solo lo de esta tienda. Buscando: todo, primero lo de esta tienda */
+const HABhere=()=>HAB().filter(r=>r[5]>0);
 const moreBtn=(id,n)=>`<button type="button" class="linkbtn" id="${id}" style="display:block;margin:4px auto 0">${n>0?'Ver '+n+' más':'Ver menos'}</button>`;
 function renderSug(){
   const q=norm($('iName').value.trim()),words=q.split(/\s+/).filter(Boolean);
-  const H=HAB(),all=words.length?H.filter(r=>words.every(w=>norm(r[0]).includes(w))):H,lim=words.length?10:(sugMore?60:12),list=all.slice(0,lim);SUG=list;
-  $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':(CAT.length?'No está en tus compras: pon el precio a mano':'')):(list.length?'Lo que más compras':'');
+  const H=words.length?HAB():HABhere(),all=words.length?H.filter(r=>words.every(w=>norm(r[0]).includes(w))):H,lim=words.length?10:(sugMore?60:12),list=all.slice(0,lim);SUG=list;
+  $('sugt').textContent=words.length?(list.length?'Coincidencias en tus compras':(CAT.length?'No está en tus compras: pon el precio a mano':'')):(list.length?'Lo que más compras en '+store:'');
   const pend=!listLink&&!editing?cur().filter(x=>!x.done).slice(0,5):[];
   $('sugl').hidden=!pend.length;
   $('sugl').innerHTML=pend.length?'<div class="sugt">¿Es algo de tu lista?</div><div class="sug">'+pend.map(x=>`<button type="button" data-l="${esc(x.id)}" class="fromlist"><span>${esc(x.name)}<small>De tu lista de la compra</small></span><b>${x.price!=null?eur.format(x.price):''}</b></button>`).join('')+'</div>':'';
@@ -1362,10 +1366,10 @@ $('shopUl').onclick=e=>{if(swiped){swiped=false;return}const b=e.target.closest(
 function renderListEditor(){
   const L=cur();$('tList').textContent='Lista para '+store;
   const q=norm($('lq').value.trim()),w=q.split(/\s+/).filter(Boolean),inList=new Set(L.map(x=>norm(x.name)));
-  const H=HAB(),pool=w.length?H.filter(r=>w.every(t=>norm(r[0]).includes(t))):H.filter(r=>!inList.has(norm(r[0])));
+  const H=w.length?HAB():HABhere(),pool=w.length?H.filter(r=>w.every(t=>norm(r[0]).includes(t))):H.filter(r=>!inList.has(norm(r[0])));
   let res=pool.slice(0,w.length?10:(lsugMore?80:20)).map(r=>[r[0],r[1]]);
   if(w.length&&!H.some(r=>norm(r[0])===q))res.push([$('lq').value.trim(),null,true]);
-  $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales';
+  $('lsugt').textContent=w.length?'Toca para añadir':'Tus habituales en '+store;
   const due=w.length?[]:dueItems();
   $('ldue').innerHTML=due.length?'<div class="sugt">Te toca comprar</div><div class="sug">'+due.map(d=>`<button type="button" data-n="${esc(d.name)}" class="fromlist"><span>${esc(d.name)}<small>${esc(d.why)}</small></span><b>${d.price!=null?eur.format(d.price):''}</b></button>`).join('')+'</div>'+(due.length>1?'<button type="button" class="linkbtn" id="dueAll">Añadir las '+due.length+' a la lista</button>':''):'';
   $('lsug').innerHTML=res.map(r=>`<button type="button" data-n="${esc(r[0])}"><span>${r[2]?'Añadir «'+esc(r[0])+'»':esc(r[0])}${inList.has(norm(r[0]))?'<small>Ya en la lista · suma 1</small>':''}</span><b>${r[1]!=null?eur.format(r[1]):''}</b></button>`).join('');
